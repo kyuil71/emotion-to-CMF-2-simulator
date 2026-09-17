@@ -1,447 +1,1302 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Interview Target Optimizer</title>
-    <!-- Tailwind CSS CDN -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React, ReactDOM, Babel CDNs -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Lucide Core CDN -->
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800;900&display=swap');
-        body {
-            font-family: 'Pretendard', sans-serif;
-        }
-        .animate-in {
-            animation: fadeIn 0.5s ease-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>Trend Insight Lab v17</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css" />
+
+  <style>
+    /* ==========================================================
+       타이포 시스템 — Tailwind 임의값(text-[15px]) 남용을 대체.
+       body 접두사로 특이도를 한 단계 올려 Tailwind 유틸리티와의
+       충돌(같은 특이도 → 주입 순서에 따라 승자가 바뀌는 문제)을 차단.
+       ========================================================== */
+    html { -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, sans-serif;
+      -webkit-tap-highlight-color: transparent;
+      background-color: #f1f5f9;
+      color: #0f172a;
+      font-size: 17px;
+      line-height: 1.8;
+      word-break: keep-all;
+      overflow-wrap: break-word;
+    }
+
+    body .t-display { font-size: 36px; line-height: 1.15; font-weight: 800; letter-spacing: -0.025em; }
+    body .t-h1      { font-size: 26px; line-height: 1.35; font-weight: 800; letter-spacing: -0.015em; }
+    body .t-h2      { font-size: 22px; line-height: 1.4;  font-weight: 800; letter-spacing: -0.01em; }
+    body .t-h3      { font-size: 19px; line-height: 1.5;  font-weight: 700; }
+    body .t-body    { font-size: 17px; line-height: 1.8;  font-weight: 400; }
+    body .t-small   { font-size: 16px; line-height: 1.75; }
+    body .t-meta    { font-size: 16px; line-height: 1.65; }
+    body .t-label   { font-size: 16px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; }
+
+    /* 본문 가독성: 한국어에서 양쪽정렬은 어절 사이가 벌어져 오히려 읽기 어려움 → 왼쪽 정렬 */
+    body .prose-ko { text-align: left; white-space: pre-line; }
+
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+    @keyframes fade-in { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+    .animate-fade-in { animation: fade-in 0.35s ease-out forwards; }
+    @keyframes scale-in { from { transform: scale(0.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    .animate-scale-in { animation: scale-in 0.18s ease-out forwards; }
+
+    /* 분석 중 표시 — '동작 줄이기' 설정에서도 반드시 회전해야 하므로 전용 애니메이션 사용 */
+    @keyframes spinner-rotate { to { transform: rotate(360deg); } }
+    .spinner-ring {
+      width: 84px; height: 84px; border-radius: 50%;
+      border: 7px solid #e2e8f0; border-top-color: #2563eb; border-right-color: #2563eb;
+      animation: spinner-rotate 0.9s linear infinite;
+      will-change: transform;
+    }
+
+    input[type=range] { height: 28px; }
+    input[type=range]::-webkit-slider-thumb {
+      -webkit-appearance: none; height: 30px; width: 30px; border-radius: 50%;
+      background: #4f46e5; cursor: pointer; box-shadow: 0 2px 10px rgba(79,70,229,.4); margin-top: -13px;
+    }
+    input[type=range]::-webkit-slider-runnable-track { height: 4px; background: #cbd5e1; border-radius: 999px; }
+
+    /* 키보드 포커스 가시성 */
+    :focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; border-radius: 8px; }
+
+    /* 하단 고정 바 — 홈 인디케이터 영역 회피 */
+    .dock { padding-bottom: calc(18px + env(safe-area-inset-bottom)); }
+    .dock-space { padding-bottom: calc(160px + env(safe-area-inset-bottom)); }
+
+    @media (prefers-reduced-motion: reduce) {
+      *:not(.spinner-ring), *::before, *::after { animation-duration: .001ms !important; transition-duration: .001ms !important; }
+      .spinner-ring { animation-duration: 1.4s !important; }
+    }
+
+    .sr-only {
+      position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+      overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0;
+    }
+  </style>
 </head>
 <body>
-    <div id="root"></div>
+  <div id="root"></div>
+  <div id="toast-region" aria-live="polite" class="sr-only"></div>
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+  <script type="module">
+    (function () {
+      "use strict";
 
-        /**
-         * Lucide-React UMD 오류를 방지하기 위한 커스텀 아이콘 컴포넌트
-         */
-        const LucideIcon = ({ name, size = 24, className = "", ...props }) => {
-            const iconHtml = useMemo(() => {
-                const iconName = name.charAt(0).toLowerCase() + name.slice(1);
-                const icon = window.lucide?.icons?.[iconName];
-                if (!icon) return "";
-                return icon.toSvg({
-                    width: size,
-                    height: size,
-                    class: className,
-                    ...props
-                });
-            }, [name, size, className, props]);
+      /* =========================================================
+         1. CONFIG / 상수
+         ========================================================= */
+      const CONFIG = {
+        MODEL_NAME: "gemini-flash-latest",
+        SESSION_KEY_API: "trendInsightApiKey_v18",
+        PROJECTS_KEY: "trend_lab_projects_v16",
+        MAX_PROJECTS: 5,
+        AUTOSAVE_MS: 5000
+      };
 
-            if (!iconHtml) return null;
-            return <span className="inline-flex items-center justify-center" dangerouslySetInnerHTML={{ __html: iconHtml }} />;
+      const STEEP_LABEL = {
+        social: "SOCIAL · 사회", s: "SOCIAL · 사회", soc: "SOCIAL · 사회",
+        tech: "TECHNOLOGY · 기술", t: "TECHNOLOGY · 기술", technology: "TECHNOLOGY · 기술",
+        econ: "ECONOMY · 경제", e: "ECONOMY · 경제", economy: "ECONOMY · 경제",
+        env: "ENVIRONMENT · 환경", v: "ENVIRONMENT · 환경", environment: "ENVIRONMENT · 환경",
+        policy: "POLICY · 정책", p: "POLICY · 정책", pol: "POLICY · 정책"
+      };
+
+      const TIMELINE_LABEL = { past: "PAST · 과거", present: "PRESENT · 현재" };
+
+      // 전체 분석 흐름을 8단계로 구성
+      const STAGES = [
+        { n: 1, label: "트렌드 선택" },
+        { n: 2, label: "과거·현재 분석" },
+        { n: 3, label: "예측 연도 설정" },
+        { n: 4, label: "미래 트렌드" },
+        { n: 5, label: "추론 목적" },
+        { n: 6, label: "통합 인사이트" },
+        { n: 7, label: "디자인 컨셉" },
+        { n: 8, label: "케이스스터디" }
+      ];
+
+      /* =========================================================
+         2. TREND DATA
+         ========================================================= */
+      const TREND_DATA = {
+        "2024": [
+          { code: "T24-01", kr: "분초사회", en: "Time-efficient Society", summary: "시간의 가치가 돈보다 훨씬 중요해지면서 1분 1초를 조각내어 효율성을 극대화하는 사회적 현상입니다. 단순히 바쁜 삶을 사는 것을 넘어, 영상 배속 시청이나 요약본 소비처럼 시간의 밀도를 높이려는 노력이 일상화되고 있습니다. '시성비(시간 대비 성능)'가 소비와 경험의 핵심 기준으로 자리 잡았습니다." },
+          { code: "T24-02", kr: "호모 프롬프트", en: "Homo Promptus", summary: "생성형 AI 기술이 일상화됨에 따라, 기술적 지식 그 자체보다는 AI에게 적절한 질문(프롬프트)을 던져 원하는 결과물을 이끌어내는 능력이 중요해졌습니다. 인간 고유의 창의성과 AI의 연산 능력을 결합하여 최상의 결과물을 만들어내는 'AI 활용 능력'이 핵심 경쟁력이 된 신인류를 뜻합니다." },
+          { code: "T24-03", kr: "육각형 인간", en: "Hexagonal Human", summary: "외모, 학력, 자산, 성격, 직업, 집안 등 모든 조건이 완벽하게 갖춰진, 마치 육각형 그래프가 꽉 찬 상태의 인간상을 선망하는 문화적 세태입니다. 완벽을 추구하는 사회적 압박 속에서도, 이를 하나의 놀이나 밈(meme)으로 소비하며 이상향과 현실 사이의 괴리를 해소하려는 경향을 보입니다." },
+          { code: "T24-04", kr: "버라이어티 가격", en: "Variable Pricing", summary: "동일한 상품이나 서비스라도 구매하는 시간, 장소, 소비자의 상황, 그리고 실시간 수요 공급에 따라 가격이 시시각각 변하는 현상입니다. '일물일가(하나의 물건에 하나의 가격)'의 법칙이 무너지고, 데이터와 AI 기술을 기반으로 한 개인화된 가격 전략이 시장 전반으로 확대되고 있습니다." },
+          { code: "T24-05", kr: "도파밍", en: "Dopamine Farming", summary: "즐거움과 쾌락을 전달하는 뇌 신경전달물질 '도파민'과 게임 용어인 '파밍(수집)'을 결합한 말입니다. 숏폼 콘텐츠나 랜덤 박스처럼 짧고 강렬한 재미, 예측 불가능한 보상을 끊임없이 찾아다니는 소비 행태를 의미하며, 즉각적인 만족을 추구하는 현대인의 심리를 반영합니다." },
+          { code: "T24-06", kr: "요즘 남편", en: "Millennial Hubbies", summary: "과거의 권위적인 가장의 모습에서 탈피하여 가사와 육아, 가족 관계에 능동적이고 적극적으로 참여하는 밀레니얼 세대 남편들을 지칭합니다. 가사 노동을 돕는 것이 아니라 '함께' 하는 것으로 인식하며, 결혼 생활을 파트너십의 관점에서 바라보는 변화된 라이프스타일을 보여줍니다." },
+          { code: "T24-07", kr: "스핀오프", en: "Spin-off Projects", summary: "영화나 드라마의 파생작처럼, 본업이나 본래의 자아를 유지하면서도 새로운 분야로 확장하거나 사이드 프로젝트를 통해 정체성을 다각화하는 현상입니다. 기업은 브랜드 라인업을 확장하고, 개인은 '부캐'를 통해 새로운 가능성을 탐색하며 유연하게 자아를 실현하는 방식을 의미합니다." },
+          { code: "T24-08", kr: "디토 소비", en: "Ditto Consumption", summary: "정보 과잉 시대에 복잡한 가치 판단 과정을 생략하고, 자신이 신뢰하는 인플루언서나 취향이 맞는 사람, 특정 커뮤니티의 선택을 그대로 따라 구매하는 방식입니다. '나도(Ditto)'라는 뜻처럼, 소비의 실패를 줄이고 시간을 아끼기 위해 타인의 큐레이션을 적극적으로 수용하는 태도입니다." },
+          { code: "T24-09", kr: "리퀴드폴리탄", en: "Liquidpolitan", summary: "정주하는 인구 중심의 도시가 아니라, 다양한 라이프스타일과 취향을 가진 사람들이 유연하게 모이고 흩어지는 '액체(Liquid)' 같은 도시를 의미합니다. 지역의 고유한 콘텐츠나 경험을 찾아 방문하는 유동 인구가 도시의 활력을 결정하며, 지역 소멸 위기의 새로운 해법으로 주목받고 있습니다." },
+          { code: "T24-10", kr: "돌봄 경제", en: "Care Economy", summary: "초고령화 사회 진입과 1인 가구 증가로 인해 '돌봄'이 가족의 영역을 넘어 사회적, 경제적 가치를 창출하는 핵심 산업으로 부상하고 있습니다. 육체적 돌봄뿐만 아니라 정서적, 관계적 돌봄까지 포함하며, 기술과 결합된 돌봄 서비스가 새로운 비즈니스 기회를 창출하고 있습니다." }
+        ],
+        "2025": [
+          { code: "T25-01", kr: "옴니보어", en: "Omnivore", summary: "특정 세대나 성별, 소득 수준에 따른 전형적인 소비 패턴이 사라지고, 경계를 허물며 다양한 취향을 섭렵하는 '잡식성' 소비자를 의미합니다. 럭셔리 제품과 저가 제품을 동시에 소비하거나, 나이와 상관없이 새로운 문화를 즐기는 등 집단적 특성보다는 개인의 고유한 취향이 소비를 결정하는 핵심 요인이 됩니다." },
+          { code: "T25-02", kr: "#아보하", en: "Ordinary Day", summary: "'아주 보통의 하루'를 줄인 말로, 남들에게 과시할 만한 특별한 성공이나 행운보다는 별다른 문제 없이 지나가는 평온한 일상에 감사하고 만족하는 태도입니다. SNS의 과시적 행복에 피로감을 느끼고, 무탈하고 안온한 삶 그 자체를 소중히 여기는 정서적 트렌드를 반영합니다." },
+          { code: "T25-03", kr: "토핑경제", en: "Topping Economy", summary: "완성된 제품을 그대로 소비하는 것에 만족하지 않고, 자신의 취향과 개성에 맞춰 '토핑'을 얹듯 커스터마이징하는 과정에 더 큰 가치를 두는 현상입니다. 신발 꾸미기나 다이어리 꾸미기처럼, 기본 제품에 나만의 창의성을 더해 세상에 하나뿐인 결과물을 만들어내는 참여형 소비 문화입니다." },
+          { code: "T25-04", kr: "페이스테크", en: "Face-tech", summary: "차가운 기술에 따뜻한 감성을 입혀, 기계나 AI가 인간의 표정을 읽고 반응하거나 사람처럼 자연스러운 표정을 구사하여 정서적 교감을 나누는 기술입니다. 기술의 성능보다 사용자가 느끼는 감정적 연결과 사용자 경험(UX)을 중시하며, 휴머노이드 로봇이나 디지털 휴먼 분야에서 두드러집니다." },
+          { code: "T25-05", kr: "무해력", en: "Harmless Charm", summary: "자극적이고 유해한 콘텐츠나 경쟁적인 사회 분위기에 지친 사람들이 작고 귀엽고 순수한 대상, 즉 '해롭지 않은' 존재에게서 위로와 힐링을 얻는 현상입니다. 아기, 동물, 엉뚱한 캐릭터 등 무방비하고 순수한 대상에 열광하며, 스트레스 없는 편안한 관계와 콘텐츠를 갈망하는 심리입니다." },
+          { code: "T25-06", kr: "그라데이션 K", en: "Gradation K", summary: "한국 문화(K-Culture)가 단일한 색깔이 아니라, 전 세계의 다양한 문화와 섞이며 점진적으로 스펙트럼이 넓어지는 현상입니다. 한국적인 것만을 고집하는 것이 아니라, 현지 문화와 자연스럽게 융합되어 새로운 형태의 K-컬처로 진화하며 글로벌 시장에서 유연하게 확장되는 모습을 보여줍니다." },
+          { code: "T25-07", kr: "물성매력", en: "Material Attraction", summary: "디지털화가 가속화될수록 역설적으로 손에 잡히는 물성, 즉 질감, 무게, 향기 등 오감으로 느끼는 아날로그적 경험을 갈망하는 트렌드입니다. 화면 속의 경험으로는 채울 수 없는 실재감과 감각적 만족을 추구하며, 팝업 스토어나 체험형 공간 등 오프라인 경험의 가치가 재조명되고 있습니다." },
+          { code: "T25-08", kr: "기후감수성", en: "Climate Sensitivity", summary: "기후 위기를 막연한 지구의 문제가 아니라, 나의 생존과 직결된 시급한 문제로 인식하고 민감하게 반응하는 태도입니다. 단순히 친환경 제품을 구매하는 것을 넘어, 기후 변화에 대응하는 라이프스타일을 실천하고 기업과 정부에 적극적인 변화를 요구하는 '기후 행동주의'적 성향을 보입니다." },
+          { code: "T25-09", kr: "공진화 전략", en: "Co-evolution", summary: "승자독식의 무한 경쟁 시대가 저물고, 경쟁자와도 필요하다면 손을 잡고 함께 생태계를 키워나가는 상생과 협력의 비즈니스 전략입니다. 폐쇄적인 독자 생존보다는 개방형 혁신과 파트너십을 통해 상호 의존적으로 성장하며, 급변하는 시장 환경에 유연하게 대응하려는 생존 방식입니다." },
+          { code: "T25-10", kr: "원포인트업", en: "One-point Up", summary: "인생을 송두리째 바꾸려는 거대한 자기계발 계획 대신, 지금 당장 실천 가능한 '한 가지'에 집중하여 확실한 성취를 맛보는 성장 전략입니다. 원대한 목표보다는 구체적이고 작은 습관 하나를 개선함으로써 자기 효능감을 높이고, 지속 가능한 성장을 도모하는 실용적인 태도입니다." }
+        ],
+        "2026": [
+          { code: "T26-01", kr: "휴먼인더루프", en: "Human-in-the-loop", summary: "AI 자동화 시스템이 고도화될수록 오히려 인간의 개입과 판단이 중요해지는 현상입니다. AI가 처리하지 못하는 예외 상황이나 윤리적 판단, 창의적 결정 단계에서 인간이 필수적인 역할을 수행하며, '인간과 AI의 협업'이 완벽한 결과를 위한 필수 조건임을 의미합니다." },
+          { code: "T26-02", kr: "필코노미", en: "The Feelconomy", summary: "제품의 기능이나 가성비보다 소비 과정에서 느끼는 감정과 기분(Feel)이 소비 결정의 핵심 기준이 되는 경제 현상입니다. 단순히 좋은 물건을 사는 것을 넘어, 그 과정에서 얻는 즐거움, 위로, 특별한 기분 등 정서적 만족감이 가격 이상의 가치를 창출하는 감각 중심의 경제입니다." },
+          { code: "T26-03", kr: "제로클릭", en: "Zero-click", summary: "사용자가 별도로 검색하거나 앱을 실행하는 수고(Click)를 하지 않아도, AI가 맥락을 파악하여 알아서 필요한 정보를 제공하거나 기능을 수행하는 환경입니다. 사용자의 의도를 미리 예측하여 선제적으로 서비스를 제공하는 '초개인화' 기술의 정점을 보여주는 미래형 인터페이스입니다." },
+          { code: "T26-04", kr: "레디코어", en: "Ready-core", summary: "기후 재난, 팬데믹, 전쟁 등 예측 불가능한 위기가 일상화됨에 따라, 생존을 위한 대비(Ready)를 삶의 중심(Core)에 두는 라이프스타일입니다. 비상 식량이나 생존 키트를 구비하는 것을 넘어, 위기 상황에서도 일상을 유지할 수 있는 회복 탄력성과 생존 기술을 습득하는 것이 필수가 되었습니다." },
+          { code: "T26-05", kr: "AX조직", en: "AX Organization", summary: "AI 전환(AI Transformation)이 단순한 도구 도입을 넘어, 조직의 일하는 방식, 의사결정 체계, 인재상까지 근본적으로 바뀐 미래형 조직입니다. 모든 구성원이 AI를 능숙하게 활용하여 업무 효율을 극대화하고, 데이터 기반의 의사결정이 조직 문화의 핵심으로 자리 잡은 기업 형태입니다." },
+          { code: "T26-06", kr: "픽셀라이프", en: "Pixelated Life", summary: "건강, 수면, 자산, 시간, 감정 등 삶의 모든 영역을 디지털 데이터(픽셀) 단위로 정교하게 측정하고 기록하여 관리하는 삶의 방식입니다. 웨어러블 기기와 센서 기술의 발달로 자신의 상태를 실시간으로 모니터링하고, 데이터에 기반하여 삶의 질을 최적화하려는 '정량화된 자아' 트렌드입니다." },
+          { code: "T26-07", kr: "프라이스 디코딩", en: "Price Decoding", summary: "기업이 제시하는 가격을 수동적으로 받아들이지 않고, 원가 구조와 유통 마진, 시기별 변동 추이 등을 낱낱이 해독(Decoding)하고 검증하는 똑똑한 소비자들의 등장입니다. 가격 비교 앱과 AI 분석 도구를 활용하여 최적의 구매 시점을 찾고, 가격 거품에 대해 비판적인 목소리를 내는 능동적인 소비 행태입니다." },
+          { code: "T26-08", kr: "건강지능 HQ", en: "Health Intelligence", summary: "단순히 병원에 가거나 약을 먹는 수동적인 건강 관리를 넘어, 자신의 유전자 정보와 생체 데이터를 이해하고 주도적으로 건강을 설계하는 높은 수준의 지능(HQ)입니다. 예방 의학적 관점에서 자신의 건강 리스크를 미리 파악하고, 맞춤형 식단과 운동으로 최적의 신체 상태를 유지하려는 노력입니다." },
+          { code: "T26-09", kr: "1.5가구", en: "1.5 Households", summary: "완전한 1인 가구의 고립감과 다인 가구의 번거로움 사이에서, 프라이버시는 지키되 필요할 때만 느슨하게 연결되는 새로운 주거 형태입니다. 셰어하우스나 코리빙 하우스처럼 개인 공간은 철저히 분리하되 주방이나 거실 등 공용 공간을 공유하며 적절한 거리감을 유지하는 주거 방식입니다." },
+          { code: "T26-10", kr: "근본이즘", en: "Fundamentals", summary: "트렌드가 너무 빠르게 변하는 피로감 속에서, 변하지 않는 본질적인 가치와 오리지널리티(근본)로 회귀하려는 강력한 흐름입니다. 트렌드에 휩쓸리기보다 오랜 시간 검증된 클래식, 브랜드의 헤리티지, 제품의 본질적인 기능에 집중하며 깊이 있는 가치를 추구하는 성향입니다." }
+        ]
+      };
+
+      /* =========================================================
+         3. PROMPTS
+         ========================================================= */
+      const PROMPTS = {
+        "STEEP": `You are a Senior Strategic Researcher. Perform a 'Past-Present' analysis for EACH provided keyword.
+Return a RAW JSON array. Each element MUST have this exact shape:
+{ "keyword": "Name",
+  "timeline": {
+    "past":    { "desc": "...", "steep": { "social":"", "tech":"", "econ":"", "env":"", "policy":"" } },
+    "present": { "desc": "...", "steep": { "social":"", "tech":"", "econ":"", "env":"", "policy":"" } }
+  } }
+[RULES] Both timelines (past and present) are REQUIRED for every keyword. Do not include a future timeline. All five steep keys are REQUIRED.
+desc: about 300-400 Korean characters. Each steep value: 1-2 sentences.
+[TONE] Write in Korean. Professional and insightful. No markdown.`,
+
+        "SCENARIO": `You are a Futurist. Predict THREE DISTINCT NEW FUTURE TRENDS based on the combination of selected trends for the target year.
+Return a RAW JSON object:
+{ "trends": [
+  { "futureTrendKeyword": "Trend 1 Name", "characteristics": "...", "userScenario": "..." },
+  { "futureTrendKeyword": "Trend 2 Name", "characteristics": "...", "userScenario": "..." },
+  { "futureTrendKeyword": "Trend 3 Name", "characteristics": "...", "userScenario": "..." }
+] }
+[RULES] Exactly 3 clearly distinct trends. 'characteristics' explains the essence and novelty. 'userScenario' is a storytelling narrative about core human behaviors. Each about 500-700 Korean characters.
+[MODIFICATION RULE] If an [INSTRUCTION] is provided, prioritize it as a professional futurist while keeping the required format.
+[TONE] Write in Korean. Visionary and detailed. No markdown.`,
+
+        "REASONING": `You are a Master Insight Strategist. Synthesize the initial trends and the predicted future trend based on the user's Task Goal. Derive the 3 most critical integrated insights.
+[STRICT HEADLINE RULE] Each headline MUST follow one of these 4 patterns precisely:
+① [주체/맥락] 속 [구체적 니즈/목표]를 위한 [행동/가치]이 중요하다
+② [주체 A]&[주체 B]의 결합을 통한 [새로운 가치/영향] 창출이 중요하다
+③ [주체]가 [대상/미래 맥락]에서 핵심적인 [역할/기능]로 중요해질 것이다
+④ [주체 A]의 역할이 [현재 역할]에서 [미래 역할/플랫폼]로 바뀌고 있다
+[CONTENT RULE] Each description: rich, deep, with clear cause-and-effect reasoning and relatable metaphors instead of jargon. A university student must grasp the logic immediately.
+[MODIFICATION RULE] If an [INSTRUCTION] is provided, treat it as a critical command to revise the previous output.
+Return RAW JSON: { "insights": [ { "headline": "...", "description": "..." } ] }
+[TONE] Write in Korean. Profound but clear. No markdown.`,
+
+        "CONCEPTS": `You are a Creative Director. Generate 3 design concepts.
+Return a RAW JSON array of 3 objects:
+[{ "title": "Concept Name", "persona": "Strategic persona description", "description": "About 3 lines summarizing the concept", "coreValue": "Who: ...\\nPurpose: ...\\nService: ...", "keyFeatures": [{ "title": "Feature Title", "desc": "Detailed description" }] }]
+[RULES]
+- 'persona': a unique, strategically relevant target persona for the analyzed context.
+- 'coreValue': MUST use the three sub-headers exactly — "Who:", "Purpose:", "Service:" — each on its own line.
+- 'keyFeatures': 3 items minimum, each an object with title and desc.
+[MODIFICATION RULE] If an [INSTRUCTION] is provided, apply it as a top-priority refinement command.
+[TONE] Korean. Clear and engaging. No markdown bold in values.`,
+
+        "BENCHMARK": `You are a Global Business Analyst. Based on the given concept, find 2 similar EXISTING success cases.
+[RULES]
+- Well-known US/Europe brands. Quantitative data required.
+- caseName format: "English Name (한글 표기)". e.g. "Virta Health (비르타 헬스)"
+- caseCharacteristics: about 5 sentences covering When (founding year), Who (founder), How (core technology or business method), What (main business/goal).
+- successFactor / businessResult / expansionFactor: about 3 lines each, detailed.
+[MODIFICATION RULE] If an [INSTRUCTION] is provided, adjust the case selection or analysis depth accordingly.
+Return RAW JSON: { "selectedConceptName": "...", "cases": [ { "caseName": "...", "caseCharacteristics": "...", "successFactor": "...", "businessResult": "...", "expansionFactor": "..." } ] }
+[TONE] Korean. Storytelling format for university students. No markdown.`,
+
+        "ASK_AI": `You are a Professional Trend Consultant. Answer the user's question based on the provided context.
+Return RAW JSON: { "answer": "..." }
+[TONE] Korean. Clear and specific. No markdown.`
+      };
+
+      /* =========================================================
+         4. 유틸 — 이스케이프 / 토스트
+         ========================================================= */
+      function esc(v) {
+        if (v === null || v === undefined) return "";
+        return String(v)
+          .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+      }
+      function escAttr(v) { return esc(v); }
+
+      function toast(msg, tone) {
+        const live = document.getElementById("toast-region");
+        if (live) live.textContent = msg;
+        const colors = { ok: "bg-slate-900", warn: "bg-amber-600", error: "bg-red-600", info: "bg-blue-700" };
+        const el = document.createElement("div");
+        el.textContent = msg;
+        el.className = `fixed left-1/2 -translate-x-1/2 ${colors[tone] || colors.ok} text-white px-6 py-3.5 rounded-2xl font-bold z-[10001] animate-fade-in shadow-2xl max-w-[90vw] text-center t-small`;
+        el.style.bottom = "calc(96px + env(safe-area-inset-bottom))";
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 2800);
+      }
+
+      const uid = () => "p_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+      /* =========================================================
+         5. 저장소 — 슬롯 방식(최대 5개) + 예외/용량 처리
+         기존: 단일 키에 5초마다 덮어쓰기 → 이전 작업이 조용히 소멸
+         ========================================================= */
+      const Store = {
+        list() {
+          try {
+            const raw = localStorage.getItem(CONFIG.PROJECTS_KEY);
+            const arr = raw ? JSON.parse(raw) : [];
+            return Array.isArray(arr) ? arr : [];
+          } catch (e) {
+            console.warn("저장 목록을 읽지 못했습니다.", e);
+            return [];
+          }
+        },
+        _write(list) {
+          try {
+            localStorage.setItem(CONFIG.PROJECTS_KEY, JSON.stringify(list));
+            return true;
+          } catch (e) {
+            return false;
+          }
+        },
+        save(snapshot, meta) {
+          let list = Store.list().filter(p => p.id !== meta.id);
+          list.unshift({ id: meta.id, title: meta.title, savedAt: Date.now(), data: snapshot });
+          if (list.length > CONFIG.MAX_PROJECTS) list = list.slice(0, CONFIG.MAX_PROJECTS);
+
+          if (Store._write(list)) return { ok: true };
+
+          // 1차 실패: Q&A 기록을 최근 5건으로 줄여 재시도
+          const trimmed = list.map((p, i) => i === 0
+            ? { ...p, data: { ...p.data, qaHistory: (p.data.qaHistory || []).slice(-5) } }
+            : p);
+          if (Store._write(trimmed)) return { ok: true, pruned: "qa" };
+
+          // 2차 실패: 가장 오래된 프로젝트를 버리고 재시도
+          const reduced = trimmed.slice(0, Math.max(1, trimmed.length - 1));
+          if (Store._write(reduced)) return { ok: true, pruned: "oldest" };
+
+          return { ok: false };
+        },
+        remove(id) {
+          const list = Store.list().filter(p => p.id !== id);
+          return Store._write(list);
+        }
+      };
+
+      /* =========================================================
+         6. STATE
+         ========================================================= */
+      function blankProject() {
+        return {
+          projectId: uid(),
+          selectedYear: "2024",
+          step1Keywords: [],
+          steepResult: null,
+          targetYear: 2030,
+          futureScenario: null,
+          selectedScenarioIndex: -1,
+          researchTopic: "",
+          reasoningResult: null,
+          selectedInsightIndex: -1,
+          perspective: "General",
+          concepts: [],
+          allGeneratedConcepts: [],
+          selectedConceptIndex: -1,
+          benchmarkResult: null,
+          expanded: {},
+          qaHistory: []
         };
+      }
 
-        // 기존 코드의 호환성을 위해 아이콘 컴포넌트 정의
-        const Users = (p) => <LucideIcon name="Users" {...p} />;
-        const Target = (p) => <LucideIcon name="Target" {...p} />;
-        const Send = (p) => <LucideIcon name="Send" {...p} />;
-        const Loader2 = (p) => <LucideIcon name="Loader2" {...p} />;
-        const CheckCircle2 = (p) => <LucideIcon name="CheckCircle2" {...p} />;
-        const MessageSquare = (p) => <LucideIcon name="MessageSquare" {...p} />;
-        const TrendingUp = (p) => <LucideIcon name="TrendingUp" {...p} />;
-        const ShieldAlert = (p) => <LucideIcon name="ShieldAlert" {...p} />;
-        const ArrowRight = (p) => <LucideIcon name="ArrowRight" {...p} />;
-        const Copy = (p) => <LucideIcon name="Copy" {...p} />;
-        const RefreshCcw = (p) => <LucideIcon name="RefreshCcw" {...p} />;
-        const Search = (p) => <LucideIcon name="Search" {...p} />;
-        const Zap = (p) => <LucideIcon name="Zap" {...p} />;
-        const Key = (p) => <LucideIcon name="Key" {...p} />;
-        const ExternalLink = (p) => <LucideIcon name="ExternalLink" {...p} />;
-        const Lock = (p) => <LucideIcon name="Lock" {...p} />;
-        const Settings = (p) => <LucideIcon name="Settings" {...p} />;
-        const Sparkles = (p) => <LucideIcon name="Sparkles" {...p} />;
-        const Info = (p) => <LucideIcon name="Info" {...p} />;
+      let state = {
+        apiKey: sessionStorage.getItem(CONFIG.SESSION_KEY_API) || "",
+        step: -1,
+        isAnalyzing: false,
+        loadingMsg: "",
+        errorMsg: null,
+        qaModal: { visible: false, question: "", answer: "" },
+        showQaHistory: false,
+        ...blankProject()
+      };
 
-        // 실행 환경에서 제공하는 API 키를 바인딩하기 위한 변수
-        const apiKey = ""; 
+      // 입력 중인 값은 state에 넣지 않고 별도 보관 → 타이핑마다 재렌더되지 않음
+      const drafts = {};
+      window.setDraft = (id, v) => { drafts[id] = v; };
+      const draft = (id) => drafts[id] || "";
 
-        const App = () => {
-            // --- States ---
-            const [view, setView] = useState('init'); // 'init', 'app'
-            const [userApiKey, setUserApiKey] = useState('');
-            
-            const [productName, setProductName] = useState('');
-            const [goal, setGoal] = useState('');
-            const [loading, setLoading] = useState(false);
-            const [results, setResults] = useState(null);
-            const [error, setError] = useState(null);
-            const [copyStatus, setCopyStatus] = useState(false);
+      /* 단계별 산출물 무효화 — 상위 단계를 다시 실행하면 하위 결과를 반드시 폐기.
+         (기존 버그: 시나리오를 재생성해도 이전 시나리오 기준의 컨셉·케이스스터디가 남아
+          최신 결과인 것처럼 표시되고 리포트에도 섞여 들어감) */
+      function invalidateFrom(stage) {
+        const patch = {};
+        if (stage <= 2) { patch.steepResult = null; }
+        if (stage <= 4) { patch.futureScenario = null; patch.selectedScenarioIndex = -1; }
+        if (stage <= 6) { patch.reasoningResult = null; patch.selectedInsightIndex = -1; }
+        if (stage <= 7) { patch.concepts = []; patch.selectedConceptIndex = -1; }
+        if (stage <= 8) { patch.benchmarkResult = null; patch.selectedConceptIndex = -1; }
+        return patch;
+      }
 
-            // --- Constants ---
-            const API_GET_URL = "https://aistudio.google.com/app/apikey";
-            const MODEL_NAME = "gemini-flash-latest"; // 제미나이 모델 변경
+      function setState(patch) {
+        const prevStep = state.step;
+        state = { ...state, ...patch };
+        window.__state = state;
+        render(patch.step !== undefined && patch.step !== prevStep);
+      }
+      window.setState = setState;
+      window.__state = state;
 
-            // --- Initial Setup ---
-            useEffect(() => {
-                const savedKey = localStorage.getItem('gemini_api_key');
-                if (savedKey) {
-                    setUserApiKey(savedKey);
-                }
-            }, []);
+      /* =========================================================
+         7. AI 호출 — 취소 / 파싱 방어 / 치명적 오류 즉시 중단
+         ========================================================= */
+      let activeController = null;
 
-            // --- Handlers ---
-            const saveAndGoToApp = () => {
-                const trimmedKey = userApiKey.trim();
-                if (trimmedKey.length < 20) {
-                    setError("유효한 API 키 형식이 아닙니다. 다시 확인해 주세요.");
-                    return;
-                }
-                localStorage.setItem('gemini_api_key', trimmedKey);
-                setView('app');
-                setError(null);
-            };
+      function parseModelJson(text) {
+        let t = String(text).trim();
+        t = t.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+        try { return JSON.parse(t); } catch (e) { /* 아래에서 구간 추출 재시도 */ }
+        const first = Math.min(...[t.indexOf("{"), t.indexOf("[")].filter(i => i >= 0));
+        const last = Math.max(t.lastIndexOf("}"), t.lastIndexOf("]"));
+        if (Number.isFinite(first) && last > first) {
+          try { return JSON.parse(t.slice(first, last + 1)); } catch (e) { /* fallthrough */ }
+        }
+        // 기존 코드는 여기서 원본 문자열을 그대로 반환해 이후 렌더에서 터졌음 → 명시적 실패로 전환
+        throw new Error("AI 응답을 JSON으로 해석하지 못했습니다. 다시 시도해 주세요.");
+      }
 
-            const resetToHome = () => {
-                // API 기억 삭제 및 입력칸 초기화 로직 추가
-                localStorage.removeItem('gemini_api_key');
-                setUserApiKey('');
-                
-                setView('init');
-                setResults(null);
-                setError(null);
-                setProductName('');
-                setGoal('');
-            };
+      async function callGemini(systemPrompt, userPrompt) {
+        const controller = new AbortController();
+        activeController = controller;
+        const delays = [900, 2200, 5000];
+        let lastError = "알 수 없는 오류";
 
-            const fetchWithRetry = async (url, options, maxRetries = 5) => {
-                let retries = 0;
-                while (retries < maxRetries) {
-                    try {
-                        const response = await fetch(url, options);
-                        if (response.ok) return await response.json();
-                        
-                        const errorData = await response.json();
-                        throw new Error(errorData.error?.message || `Error ${response.status}`);
-                    } catch (err) {
-                        retries++;
-                        if (retries === maxRetries) throw err;
-                        const delay = Math.pow(2, retries) * 1000; // 1s, 2s, 4s...
-                        await new Promise(res => setTimeout(res, delay));
-                    }
-                }
-            };
-
-            const generateTargets = async () => {
-                if (!productName.trim()) {
-                    setError("상품명을 입력해 주세요.");
-                    return;
-                }
-
-                setLoading(true);
-                setError(null);
-                setResults(null);
-
-                const currentKey = userApiKey.trim();
-
-                const systemPrompt = `
-                    당신은 글로벌 소비재 기업의 '수석 상품 기획자'이자 '컨슈머 트렌드 분석가'입니다. 
-                    상품 정보를 바탕으로 구매력과 미래 가치를 진단하기 위한 최적의 인터뷰 대상자 10명을 제안하십시오.
-                    반드시 다음 10가지 소비자 관점을 유지하십시오:
-                    1. Trendsetter, 2. Hard-Core Reviewer, 3. Heavy User, 4. Life-Styler, 5. Tech-Savvy, 
-                    6. Next-Gen, 7. Ethical Consumer, 8. Economic Analyst, 9. CX Strategist, 10. Skeptic.
-                    
-                    중요 지침:
-                    - 'impact' 필드에는 해당 타겟의 영향력과 함께 이 타겟을 선정한 이유를 반드시 포함하여 '3줄'로 작성하십시오.
-                    
-                    응답은 반드시 한국어로 작성하며 JSON 형식이어야 합니다.
-                `;
-
-                try {
-                    const data = await fetchWithRetry(
-                        `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${currentKey}`,
-                        {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({
-                                contents: [{ parts: [{ text: `분석 대상 상품: ${productName}\n인터뷰 핵심 목표: ${goal || '시장 경쟁력 확보'}` }] }],
-                                systemInstruction: { parts: [{ text: systemPrompt }] },
-                                generationConfig: {
-                                    responseMimeType: "application/json",
-                                    responseSchema: {
-                                        type: "OBJECT",
-                                        properties: {
-                                            targets: {
-                                                type: "ARRAY",
-                                                items: {
-                                                    type: "OBJECT",
-                                                    properties: {
-                                                        type: { type: "STRING" },
-                                                        persona: { type: "STRING" },
-                                                        impact: { type: "STRING" },
-                                                        question: { type: "STRING" },
-                                                        insight: { type: "STRING" }
-                                                    },
-                                                    required: ["type", "persona", "impact", "question", "insight"]
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            })
-                        }
-                    );
-
-                    const resText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-                    if (!resText) throw new Error("분석 데이터를 가져오지 못했습니다.");
-                    
-                    const parsedData = JSON.parse(resText);
-                    setResults(parsedData.targets);
-                } catch (err) {
-                    console.error(err);
-                    setError("API 키가 유효하지 않거나 네트워크 오류가 발생했습니다. 키를 확인하고 다시 시도해 주세요.");
-                } finally {
-                    setLoading(false);
-                }
-            };
-
-            const copyResults = () => {
-                if (!results) return;
-                
-                let textToCopy = `[분석 대상 상품]\n${productName}\n\n`;
-                textToCopy += `[인터뷰 핵심 목표]\n${goal || '시장 경쟁력 확보'}\n\n`;
-                textToCopy += `[전문 인터뷰 타겟 제안 리스트]\n\n`;
-                
-                textToCopy += results.map((t, i) => (
-                    `${i + 1}. [${t.type}] ${t.persona}\n` +
-                    `- 선정 이유: ${t.impact}\n` +
-                    `- 전략적 질문: ${t.question}\n` +
-                    `- 기대 통찰: ${t.insight}`
-                )).join('\n\n');
-
-                const textArea = document.createElement("textarea");
-                textArea.value = textToCopy;
-                document.body.appendChild(textArea);
-                textArea.select();
-                document.execCommand('copy');
-                document.body.removeChild(textArea);
-                setCopyStatus(true);
-                setTimeout(() => setCopyStatus(false), 2000);
-            };
-
-            // --- Render Functions ---
-
-            const renderHomeScreen = () => (
-                <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center animate-in">
-                    <h1 className="text-4xl md:text-5xl font-black text-slate-900 tracking-tight mb-4">
-                        Interview Target <span className="text-indigo-600">Optimizer</span>
-                    </h1>
-                    <p className="text-sm md:text-base font-medium text-slate-500 max-w-lg mb-12 leading-relaxed">
-                        상품의 현재 구매력과 미래 가치를 완벽하게 진단해 줄<br/>
-                        최고의 인터뷰 타겟 10인을 AI가 정밀 제안합니다.
-                    </p>
-
-                    <div className="max-w-md w-full bg-white rounded-[2.5rem] shadow-xl p-8 md:p-10 border border-slate-100 text-left">
-                        <div className="text-center mb-8">
-                            <h2 className="text-2xl font-black text-slate-900 mb-2 tracking-tight">API 설정</h2>
-                            <p className="text-slate-500 text-sm font-medium leading-relaxed">
-                                분석을 위해 개인 API 키를 입력해 주세요.
-                            </p>
-                        </div>
-
-                        <div className="space-y-6">
-                            <div className="space-y-2">
-                                <label className="text-sm font-black text-slate-400 uppercase tracking-widest ml-1">Gemini API Key</label>
-                                <input 
-                                    type="password" 
-                                    placeholder="AIzaSy... 로 시작하는 키"
-                                    className="w-full px-5 py-4 bg-slate-50 rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all font-mono text-sm"
-                                    value={userApiKey}
-                                    onChange={(e) => setUserApiKey(e.target.value)}
-                                />
-                            </div>
-
-                            <button 
-                                onClick={saveAndGoToApp}
-                                className="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-2"
-                            >
-                                설정 저장 및 분석 시작 <ArrowRight size={18} />
-                            </button>
-
-                            {error && (
-                                <div className="p-3 bg-rose-50 text-rose-600 text-sm font-bold rounded-xl flex items-center gap-2 border border-rose-100">
-                                    <ShieldAlert size={14} /> {error}
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <a 
-                        href={API_GET_URL} 
-                        target="_blank" 
-                        rel="noopener noreferrer"
-                        className="mt-12 flex items-center gap-2 text-sm font-bold text-slate-400 hover:text-indigo-600 transition-colors"
-                    >
-                        <ExternalLink size={18} />
-                        개인 API 발급받기
-                    </a>
-                </div>
+        for (let i = 0; i <= delays.length; i++) {
+          try {
+            const res = await fetch(
+              `https://generativelanguage.googleapis.com/v1beta/models/${CONFIG.MODEL_NAME}:generateContent?key=${encodeURIComponent(state.apiKey || "")}`,
+              {
+                method: "POST",
+                signal: controller.signal,
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  contents: [{ parts: [{ text: userPrompt }] }],
+                  systemInstruction: { parts: [{ text: systemPrompt }] },
+                  generationConfig: { responseMimeType: "application/json", temperature: 0.7, maxOutputTokens: 8192 },
+                  safetySettings: [
+                    { category: "HARM_CATEGORY_HARASSMENT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_HATE_SPEECH", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_SEXUALLY_EXPLICIT", threshold: "BLOCK_NONE" },
+                    { category: "HARM_CATEGORY_DANGEROUS_CONTENT", threshold: "BLOCK_NONE" }
+                  ]
+                })
+              }
             );
 
-            const renderAppScreen = () => (
-                <div className="min-h-screen bg-[#f8fafc] p-4 sm:p-10 animate-in">
-                    <div className="max-w-5xl mx-auto">
-                        <div className="flex justify-between items-center mb-10">
-                            <button 
-                                onClick={resetToHome}
-                                className="flex items-center gap-2 text-sm font-black text-slate-400 hover:text-indigo-600 transition-colors bg-white px-4 py-2 rounded-xl border border-slate-100 shadow-sm"
-                            >
-                                <Settings size={14} /> 홈으로 / 키 변경
-                            </button>
-                            <div className="flex items-center gap-2">
-                                 <span className="px-3 py-1 rounded-full text-sm font-black uppercase tracking-widest bg-indigo-50 text-indigo-600">
-                                    Direct API Mode
-                                 </span>
-                            </div>
-                        </div>
-
-                        <div className="mb-12 text-center">
-                            <h1 className="text-4xl font-black text-slate-900 tracking-tight mb-2">
-                                Interview Target <span className="text-indigo-600">Optimizer</span>
-                            </h1>
-                            <p className="text-sm md:text-base font-medium text-slate-400">분석 대상을 입력하여 전략적 10인 페르소나를 도출하세요.</p>
-                        </div>
-
-                        <div className="bg-white rounded-[2.5rem] p-8 md:p-10 shadow-sm border border-slate-200 mb-10">
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                <div className="space-y-3">
-                                    <label className="flex items-center gap-2 text-sm font-black text-slate-700 ml-1">
-                                        <Search size={16} className="text-indigo-600" /> 분석 대상 상품
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="예: 프리미엄 소형 건조기"
-                                        className="w-full px-6 py-5 bg-slate-50 rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all font-bold text-slate-800 text-sm md:text-base"
-                                        value={productName}
-                                        onChange={(e) => setProductName(e.target.value)}
-                                    />
-                                </div>
-                                <div className="space-y-3">
-                                    <label className="flex items-center gap-2 text-sm font-black text-slate-700 ml-1">
-                                        <Target size={16} className="text-indigo-600" /> 상세 분석 목표
-                                    </label>
-                                    <input 
-                                        type="text" 
-                                        placeholder="예: 자취생의 실구매 허들 파악"
-                                        className="w-full px-6 py-5 bg-slate-50 rounded-2xl border-none ring-1 ring-slate-200 focus:ring-2 focus:ring-indigo-600 outline-none transition-all font-bold text-slate-800 text-sm md:text-base"
-                                        value={goal}
-                                        onChange={(e) => setGoal(e.target.value)}
-                                    />
-                                </div>
-                            </div>
-
-                            <button 
-                                onClick={generateTargets}
-                                disabled={loading}
-                                className={`w-full mt-10 py-5 rounded-[1.5rem] font-black text-lg flex items-center justify-center gap-3 transition-all duration-300 transform ${
-                                    loading 
-                                        ? 'bg-slate-100 text-slate-400 cursor-not-allowed' 
-                                        : 'bg-indigo-600 text-white hover:bg-indigo-700 hover:-translate-y-1 shadow-xl shadow-indigo-100 active:scale-95'
-                                }`}
-                            >
-                                {loading ? (
-                                    <>
-                                        <Loader2 className="animate-spin" size={24} />
-                                        데이터 분석 중...
-                                    </>
-                                ) : (
-                                    <><Send size={22} /> 분석 실행</>
-                                )}
-                            </button>
-                            
-                            {error && (
-                                 <div className="mt-6 p-4 bg-rose-50 text-rose-700 text-sm font-bold rounded-2xl border border-rose-100 flex flex-col items-start gap-4 animate-in slide-in-from-top-2">
-                                        <div className="flex items-start gap-2">
-                                            <ShieldAlert size={18} className="mt-1 shrink-0"/> 
-                                            <p>{error}</p>
-                                        </div>
-                                        <button onClick={generateTargets} className="px-6 py-2 bg-rose-100 rounded-xl hover:bg-rose-200 transition-colors text-sm font-bold">다시 시도</button>
-                                 </div>
-                            )}
-                        </div>
-
-                        {results && (
-                            <div className="space-y-8 animate-in pb-20">
-                                <div className="flex items-center justify-between px-4">
-                                    <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
-                                        <Users className="text-indigo-600" size={30} /> 도출된 핵심 타겟
-                                    </h2>
-                                    <button 
-                                        onClick={copyResults}
-                                        className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-200 rounded-2xl text-sm font-black text-slate-600 hover:text-indigo-600 transition-all active:scale-95 shadow-sm"
-                                    >
-                                        {copyStatus ? <><CheckCircle2 size={18} className="text-emerald-500" /> 복사 완료</> : <><Copy size={18} /> 결과 복사</>}
-                                    </button>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                    {results.map((target, index) => (
-                                        <div key={index} className="bg-white rounded-[2.5rem] p-8 border border-slate-200 shadow-sm hover:shadow-xl hover:border-indigo-100 transition-all duration-300 group">
-                                            <div className="flex items-center justify-between mb-5">
-                                                <span className="text-sm font-black uppercase tracking-widest text-indigo-500 bg-indigo-50 px-3 py-1.5 rounded-full">
-                                                    {target.type}
-                                                </span>
-                                                <TrendingUp size={16} className="text-slate-300 group-hover:text-indigo-400 transition-colors" />
-                                            </div>
-                                            <h3 className="text-xl font-black text-slate-900 mb-4 leading-tight group-hover:text-indigo-600 transition-colors">
-                                                {target.persona}
-                                            </h3>
-                                            <div className="space-y-5">
-                                                <section>
-                                                    <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest mb-2">선정 이유</h4>
-                                                    <p className="text-sm text-slate-600 leading-relaxed font-semibold whitespace-pre-line">{target.impact}</p>
-                                                </section>
-                                                <section className="bg-slate-50 p-5 rounded-2xl border border-slate-100 group-hover:bg-indigo-50/50 transition-colors">
-                                                    <h4 className="text-sm font-black text-indigo-400 uppercase tracking-widest mb-2">전략적 질문</h4>
-                                                    <p className="text-sm md:text-[15px] font-bold text-slate-800 italic leading-snug">"{target.question}"</p>
-                                                </section>
-                                                <section className="pt-4 border-t border-slate-100 flex gap-3">
-                                                    <CheckCircle2 size={14} className="text-emerald-500 mt-1 shrink-0" />
-                                                    <div>
-                                                        <h4 className="text-sm font-black text-slate-400 uppercase tracking-widest">기대 통찰</h4>
-                                                        <p className="text-sm text-slate-600 font-bold">{target.insight}</p>
-                                                    </div>
-                                                </section>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-            );
-
-            // --- Main Router ---
-            switch (view) {
-                case 'init': return renderHomeScreen();
-                case 'app': return renderAppScreen();
-                default: return renderHomeScreen();
+            if (!res.ok) {
+              const err = new Error(`요청이 거부되었습니다 (상태 ${res.status}).`);
+              err.fatal = [400, 401, 403, 404].includes(res.status); // 재시도해도 결과가 같은 오류
+              throw err;
             }
-        };
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+            const data = await res.json();
+            const cand = data && data.candidates && data.candidates[0];
+            if (cand && cand.finishReason === "MAX_TOKENS") {
+              throw new Error("응답이 최대 길이에 도달해 잘렸습니다. 선택한 항목을 줄이고 다시 시도해 주세요.");
+            }
+            const text = cand && cand.content && cand.content.parts && cand.content.parts[0] && cand.content.parts[0].text;
+            if (!text) throw new Error("AI가 빈 응답을 반환했습니다.");
+            return parseModelJson(text);
+
+          } catch (err) {
+            if (err.name === "AbortError") { const e = new Error("__aborted__"); e.aborted = true; throw e; }
+            lastError = err.message;
+            if (err.fatal || i === delays.length) break;
+            await new Promise(r => setTimeout(r, delays[i]));
+          }
+        }
+        throw new Error(lastError);
+      }
+
+      // 로딩 상태 + 오류 처리를 한 곳에서 담당
+      async function withLoading(msg, fn) {
+        setState({ isAnalyzing: true, loadingMsg: msg, errorMsg: null });
+        try {
+          const out = await fn();
+          setState({ isAnalyzing: false });
+          return out;
+        } catch (err) {
+          if (err && err.aborted) { setState({ isAnalyzing: false }); toast("분석을 취소했습니다.", "info"); return null; }
+          console.error(err);
+          setState({ isAnalyzing: false, errorMsg: err.message || "분석에 실패했습니다." });
+          return null;
+        } finally {
+          activeController = null;
+        }
+      }
+
+      /* =========================================================
+         8. 응답 정규화 — 필드 누락으로 렌더가 죽지 않도록 방어
+         ========================================================= */
+      const NO_DATA = "이 항목은 AI 응답에 포함되지 않았습니다. ‘AI 수정 지시’로 다시 요청해 보세요.";
+
+      function normSteep(res, keywords) {
+        let arr = res;
+        if (!Array.isArray(arr)) arr = (res && (res.steepResult || res.results || res.data)) || [];
+        if (!Array.isArray(arr)) arr = [];
+        const emptySteep = () => ({ social: NO_DATA, tech: NO_DATA, econ: NO_DATA, env: NO_DATA, policy: NO_DATA });
+        const normSlot = (slot) => {
+          const s = slot && typeof slot === "object" ? slot : {};
+          const steep = (s.steep && typeof s.steep === "object") ? s.steep : emptySteep();
+          return { desc: typeof s.desc === "string" && s.desc.trim() ? s.desc : NO_DATA, steep };
+        };
+        return keywords.map((kw, i) => {
+          const found = arr.find(a => a && typeof a.keyword === "string" && a.keyword.includes(kw.kr)) || arr[i] || {};
+          const tl = (found.timeline && typeof found.timeline === "object") ? found.timeline : {};
+          return {
+            keyword: found.keyword || kw.kr,
+            timeline: { past: normSlot(tl.past), present: normSlot(tl.present) }
+          };
+        });
+      }
+
+      function normScenario(res) {
+        let trends = res && Array.isArray(res.trends) ? res.trends : (Array.isArray(res) ? res : (res ? [res] : []));
+        trends = trends.filter(t => t && typeof t === "object").map(t => ({
+          futureTrendKeyword: t.futureTrendKeyword || t.keyword || "이름 없는 미래 트렌드",
+          characteristics: t.characteristics || NO_DATA,
+          userScenario: t.userScenario || NO_DATA
+        }));
+        if (trends.length !== 3) throw new Error("미래 트렌드 3개가 완전하게 생성되지 않았습니다. 다시 시도해 주세요.");
+        return { trends: trends.slice(0, 3) };
+      }
+
+      function normInsights(res) {
+        let list = res && Array.isArray(res.insights) ? res.insights : (Array.isArray(res) ? res : []);
+        list = list.filter(x => x && typeof x === "object").map(x => ({
+          headline: x.headline || "제목 없는 인사이트",
+          description: x.description || NO_DATA
+        }));
+        if (!list.length) throw new Error("통합 인사이트를 생성하지 못했습니다. 다시 시도해 주세요.");
+        return { insights: list };
+      }
+
+      function normConcepts(res) {
+        let list = Array.isArray(res) ? res : (res && (res.concepts || res.results)) || [];
+        if (!Array.isArray(list)) list = [];
+        const out = list.filter(c => c && typeof c === "object").map(c => ({
+          title: c.title || "이름 없는 컨셉",
+          persona: c.persona || "",
+          description: c.description || "",
+          coreValue: typeof c.coreValue === "string" ? c.coreValue
+            : (c.coreValue && typeof c.coreValue === "object"
+              ? `Who: ${c.coreValue.who || ""}\nPurpose: ${c.coreValue.purpose || ""}\nService: ${c.coreValue.service || ""}`
+              : NO_DATA),
+          keyFeatures: Array.isArray(c.keyFeatures)
+            ? c.keyFeatures.map(f => (typeof f === "string" ? { title: f, desc: "" } : { title: (f && f.title) || "", desc: (f && f.desc) || "" }))
+            : [],
+          perspective: state.perspective
+        }));
+        if (!out.length) throw new Error("디자인 컨셉을 생성하지 못했습니다. 다시 시도해 주세요.");
+        return out;
+      }
+
+      function normBenchmark(res, fallbackName) {
+        const cases = (res && Array.isArray(res.cases) ? res.cases : []).filter(c => c && typeof c === "object").map(c => ({
+          caseName: c.caseName || "이름 없는 사례",
+          caseCharacteristics: c.caseCharacteristics || NO_DATA,
+          successFactor: c.successFactor || NO_DATA,
+          businessResult: c.businessResult || NO_DATA,
+          expansionFactor: c.expansionFactor || NO_DATA
+        }));
+        if (!cases.length) throw new Error("참고 사례를 찾지 못했습니다. 다시 시도해 주세요.");
+        return { selectedConceptName: (res && res.selectedConceptName) || fallbackName || "", cases };
+      }
+
+      /* =========================================================
+         9. ACTIONS
+         ========================================================= */
+      const Actions = {
+        cancel() { if (activeController) activeController.abort(); },
+
+        async validateKey() {
+          const input = document.getElementById("api-input");
+          const key = (input && input.value.trim()) || state.apiKey;
+          if (!key) { setState({ errorMsg: "Gemini API 키를 입력해 주세요." }); return; }
+          setState({ apiKey: key });
+          const ok = await withLoading("키를 확인하는 중", () => callGemini('Reply with JSON: {"status":"OK"}', "connection test"));
+          if (ok) {
+            sessionStorage.setItem(CONFIG.SESSION_KEY_API, key);
+            setState({ step: 0 });
+          } else {
+            sessionStorage.removeItem(CONFIG.SESSION_KEY_API);
+            setState({ apiKey: "" });
+          }
+        },
+
+        openProject(id) {
+          const p = Store.list().find(x => x.id === id);
+          if (!p) { toast("해당 프로젝트를 찾을 수 없습니다.", "error"); return; }
+          const data = { ...blankProject(), ...p.data, projectId: p.id };
+          setState({ ...data, isAnalyzing: false, errorMsg: null, step: lastCompletedStep(data) });
+          toast("프로젝트를 열었습니다.", "ok");
+        },
+
+        deleteProject(id) {
+          if (!confirm("이 프로젝트를 삭제할까요? 되돌릴 수 없습니다.")) return;
+          Store.remove(id) ? toast("프로젝트를 삭제했습니다.", "ok") : toast("삭제에 실패했습니다.", "error");
+          render(false);
+        },
+
+        startNewProject() {
+          setState({ ...blankProject(), step: 1, errorMsg: null, showQaHistory: false });
+        },
+
+        saveNow() {
+          const r = persist(true);
+          if (r === "ok") toast("현재 진행 상태를 저장했습니다.", "ok");
+          else if (r === "full") toast("저장 공간이 부족합니다. 오래된 프로젝트를 삭제해 주세요.", "error");
+        },
+
+        toggleKeyword(code) {
+          const item = TREND_DATA[state.selectedYear].find(i => i.code === code);
+          if (!item) return;
+          let list = [...state.step1Keywords];
+          if (list.some(i => i.code === code)) list = list.filter(i => i.code !== code);
+          else if (list.length < 2) list.push(item);
+          else { toast("트렌드는 최대 2개까지 선택할 수 있습니다.", "warn"); return; }
+          setState({ step1Keywords: list, expanded: { ...state.expanded, [code]: true }, ...invalidateFrom(2) });
+        },
+
+        async runSteep() {
+          const kws = state.step1Keywords;
+          if (!kws.length) return;
+          const res = await withLoading("과거·현재를 분석하는 중", () =>
+            callGemini(PROMPTS["STEEP"], `Keywords:\n${kws.map(k => `- ${k.kr}: ${k.summary}`).join("\n")}`));
+          if (res) setState({ steepResult: normSteep(res, kws), step: 2, ...invalidateFrom(4) });
+        },
+
+        async runScenario(instruction) {
+          const kws = state.step1Keywords;
+          const targetYear = Number(draft("targetYear")) || state.targetYear;
+          let prompt = `Trends:\n${kws.map(k => `- ${k.kr}: ${k.summary}`).join("\n")}\nPast-present analysis: ${JSON.stringify(state.steepResult)}\nTarget year: ${targetYear}`;
+          if (instruction) prompt += `\n[INSTRUCTION]: ${instruction}`;
+          const res = await withLoading(instruction ? "미래 트렌드를 수정하는 중" : "미래를 예측하는 중",
+            () => callGemini(PROMPTS["SCENARIO"], prompt));
+          if (res) {
+            drafts["scenario-instruction"] = "";
+            drafts["targetYear"] = "";
+            setState({ targetYear, futureScenario: normScenario(res), step: 4, selectedScenarioIndex: -1, ...invalidateFrom(6) });
+          }
+        },
+
+        async runReasoning(instruction) {
+          const topic = draft("research-topic").trim() || state.researchTopic;
+          if (!topic) { setState({ errorMsg: "추론할 과제를 입력해 주세요." }); return; }
+          const trends = state.futureScenario.trends;
+          const picked = trends[state.selectedScenarioIndex] || trends[0];
+          let prompt = `Task goal: ${topic}
+Initial trends: ${state.step1Keywords.map(k => k.kr).join(", ")}
+Chosen future trend: ${JSON.stringify(picked)}`;
+          if (instruction) prompt += `\n[INSTRUCTION]: ${instruction}`;
+          const res = await withLoading(instruction ? "추론 내용을 수정하는 중" : "인사이트를 추론하는 중",
+            () => callGemini(PROMPTS["REASONING"], prompt));
+          if (res) {
+            drafts["reasoning-instruction"] = "";
+            setState({ researchTopic: topic, reasoningResult: normInsights(res), step: 6, selectedInsightIndex: -1, ...invalidateFrom(7) });
+          }
+        },
+
+        async runIdeation(instruction) {
+          const insight = state.reasoningResult.insights[state.selectedInsightIndex];
+          if (!insight) { setState({ errorMsg: "인사이트를 먼저 선택해 주세요." }); return; }
+          let prompt = `Task: ${state.researchTopic}
+Perspective: ${state.perspective}
+Integrated insight: ${JSON.stringify(insight)}`;
+          if (instruction) prompt += `\n[INSTRUCTION]: ${instruction}`;
+          const res = await withLoading(instruction ? "컨셉을 수정하는 중" : "디자인 컨셉을 도출하는 중",
+            () => callGemini(PROMPTS["CONCEPTS"], prompt));
+          if (res) {
+            drafts["ideation-instruction"] = "";
+            const list = normConcepts(res);
+            setState({
+              concepts: list,
+              allGeneratedConcepts: [...state.allGeneratedConcepts, ...list],
+              step: 7,
+              ...invalidateFrom(8)
+            });
+          }
+        },
+
+        async runBenchmark(index, instruction) {
+          const idx = (index === null || index === undefined) ? state.selectedConceptIndex : index;
+          const c = state.concepts[idx];
+          if (!c) { setState({ errorMsg: "컨셉을 먼저 선택해 주세요." }); return; }
+          let prompt = `Concept: ${c.title}\nCore value: ${c.coreValue}`;
+          if (instruction) prompt += `\n[INSTRUCTION]: ${instruction}`;
+          const res = await withLoading("유사한 글로벌 사례를 찾는 중",
+            () => callGemini(PROMPTS["BENCHMARK"], prompt));
+          if (res) {
+            drafts["benchmark-instruction"] = "";
+            setState({ selectedConceptIndex: idx, benchmarkResult: normBenchmark(res, c.title), step: 8 });
+          }
+        },
+
+        async askAI(inputId, contextKey) {
+          const q = draft(inputId).trim();
+          if (!q) { toast("질문을 입력해 주세요.", "warn"); return; }
+          const res = await withLoading("답변을 작성하는 중",
+            () => callGemini(PROMPTS["ASK_AI"], `Context: ${JSON.stringify(state[contextKey])}\nQuestion: ${q}`));
+          if (res) {
+            const answer = typeof res === "string" ? res : (res.answer || JSON.stringify(res));
+            drafts[inputId] = "";
+            setState({ qaModal: { visible: true, question: q, answer }, qaHistory: [...state.qaHistory, { q, a: answer }] });
+          }
+        }
+      };
+      window.Actions = Actions;
+
+      /* =========================================================
+         10. 단계 이동 규칙
+         ========================================================= */
+      function stepReady(s) {
+        switch (s) {
+          case 1: return true;
+          case 2: return !!state.steepResult;
+          case 3: return !!state.steepResult;
+          case 4: return !!state.futureScenario;
+          case 5: return !!state.futureScenario && state.selectedScenarioIndex >= 0;
+          case 6: return !!state.reasoningResult;
+          case 7: return state.concepts.length > 0;
+          case 8: return !!state.benchmarkResult;
+          default: return false;
+        }
+      }
+      function lastCompletedStep(d) {
+        if (d.benchmarkResult) return 8;
+        if (d.concepts && d.concepts.length) return 7;
+        if (d.reasoningResult) return 6;
+        if (d.futureScenario) return 4;
+        if (d.steepResult) return 2;
+        return 1;
+      }
+
+      /* =========================================================
+         11. 자동 저장
+         ========================================================= */
+      let lastSaved = "";
+      let quotaWarned = false;
+
+      function snapshot() {
+        const { apiKey, isAnalyzing, loadingMsg, errorMsg, qaModal, showQaHistory, step, ...data } = state;
+        return data;
+      }
+      function projectTitle() {
+        if (state.researchTopic) return state.researchTopic.slice(0, 40);
+        if (state.step1Keywords.length) return state.step1Keywords.map(k => k.kr).join(" + ");
+        return "제목 없는 프로젝트";
+      }
+      function persist(force) {
+        if (state.step < 1) return "skip";
+        const snap = snapshot();
+        const serialized = JSON.stringify(snap);
+        if (!force && serialized === lastSaved) return "skip";
+        const r = Store.save(snap, { id: state.projectId, title: projectTitle() });
+        if (r.ok) {
+          lastSaved = serialized;
+          if (r.pruned === "oldest" && !quotaWarned) { quotaWarned = true; toast("공간 확보를 위해 가장 오래된 프로젝트를 정리했습니다.", "warn"); }
+          return "ok";
+        }
+        if (!quotaWarned) { quotaWarned = true; toast("저장 공간이 부족해 자동 저장이 중단되었습니다.", "error"); }
+        return "full";
+      }
+
+      /* =========================================================
+         12. 렌더 헬퍼
+         ========================================================= */
+      function header(title, backStep) {
+        const cur = STAGES.find(s => s.n === state.step);
+        const next = state.step + 1;
+        const showNext = STAGES.some(s => s.n === next) && stepReady(next);
+        const pct = cur ? Math.round((cur.n / STAGES.length) * 100) : 0;
+        return `
+        <header class="fixed top-0 left-0 right-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 max-w-[430px] mx-auto">
+          <div class="px-3 h-14 flex items-center justify-between gap-1">
+            <div class="flex items-center gap-1 overflow-hidden flex-1 min-w-0">
+              ${backStep !== undefined ? `<button type="button" aria-label="이전 단계로" onclick="setState({step:${backStep}})" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-600 flex-shrink-0"><i data-lucide="chevron-left" class="w-6 h-6"></i></button>` : ""}
+              <h1 class="t-h3 truncate text-slate-900">${esc(title)}</h1>
+            </div>
+            <div class="flex items-center gap-0.5 flex-shrink-0 text-slate-600">
+              ${showNext ? `<button type="button" aria-label="다음 단계로" onclick="setState({step:${next}})" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200 text-slate-900"><i data-lucide="chevron-right" class="w-6 h-6"></i></button>` : ""}
+              <button type="button" aria-label="진행 상태 저장" onclick="Actions.saveNow()" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="save" class="w-6 h-6"></i></button>
+              <button type="button" aria-label="리포트 복사" onclick="copyReport()" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="copy" class="w-6 h-6"></i></button>
+              <button type="button" aria-label="처음 화면으로" onclick="setState({step:0})" class="p-2.5 rounded-full hover:bg-slate-100 active:bg-slate-200"><i data-lucide="home" class="w-6 h-6"></i></button>
+            </div>
+          </div>
+          ${cur ? `<div class="px-4 pb-2 flex items-center gap-3">
+            <div class="h-1.5 bg-slate-200 rounded-full flex-1 overflow-hidden"><div class="h-full bg-blue-600 rounded-full transition-all" style="width:${pct}%"></div></div>
+            <span class="t-meta font-bold text-slate-500 tabular-nums flex-shrink-0">${cur.n} / ${STAGES.length} · ${esc(cur.label)}</span>
+          </div>` : ""}
+        </header>`;
+      }
+
+      function dock(inner) {
+        return `<div class="fixed bottom-0 left-0 right-0 px-5 pt-4 dock bg-white/97 backdrop-blur-md border-t border-slate-200 max-w-[430px] mx-auto z-[60] shadow-[0_-4px_20px_rgba(0,0,0,.06)]">${inner}</div>`;
+      }
+
+      function primaryBtn(label, onclick, disabled) {
+        return `<button type="button" ${disabled ? "disabled" : ""} onclick="${onclick}"
+          class="w-full py-5 rounded-2xl font-bold t-h3 text-white bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:text-slate-500 shadow-lg active:scale-[0.98] transition-all">${esc(label)}</button>`;
+      }
+
+      function instructionBox(id, onSend, placeholder) {
+        return `<section class="p-6 bg-slate-800 rounded-3xl shadow-xl mt-10">
+          <h3 class="t-label text-blue-300 mb-3">AI 수정 지시</h3>
+          <div class="flex gap-2">
+            <input type="text" id="${id}" value="${escAttr(draft(id))}" oninput="setDraft('${id}', this.value)"
+              class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none placeholder:text-slate-400 focus:border-blue-400"
+              placeholder="${escAttr(placeholder)}" aria-label="수정 지시 입력">
+            <button type="button" aria-label="수정 요청 보내기" onclick="${onSend}" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl active:scale-95 transition-all"><i data-lucide="send" class="w-5 h-5"></i></button>
+          </div>
+        </section>`;
+      }
+
+      function qaBox(inputId, contextKey) {
+        const hist = state.qaHistory;
+        return `<section class="p-6 bg-slate-700 rounded-3xl shadow-xl mt-6">
+          <h3 class="t-label text-blue-200 mb-3">AI에게 질문하기</h3>
+          <div class="flex gap-2">
+            <input type="text" id="${inputId}" value="${escAttr(draft(inputId))}" oninput="setDraft('${inputId}', this.value)"
+              class="flex-1 bg-white/10 border border-white/20 rounded-xl px-4 py-3.5 text-white t-small outline-none placeholder:text-slate-300 focus:border-blue-400"
+              placeholder="분석 결과에 대해 궁금한 점" aria-label="질문 입력">
+            <button type="button" aria-label="질문 보내기" onclick="Actions.askAI('${inputId}','${contextKey}')" class="bg-blue-600 hover:bg-blue-500 text-white px-4 rounded-xl active:scale-95 transition-all"><i data-lucide="send" class="w-5 h-5"></i></button>
+          </div>
+          ${hist.length ? `
+          <button type="button" onclick="setState({showQaHistory:${!state.showQaHistory}})" class="mt-4 t-meta font-bold text-blue-200 flex items-center gap-1.5">
+            <i data-lucide="${state.showQaHistory ? "chevron-up" : "chevron-down"}" class="w-4 h-4"></i> 지난 질문 ${hist.length}건 ${state.showQaHistory ? "접기" : "보기"}
+          </button>
+          ${state.showQaHistory ? `<div class="mt-4 space-y-4 max-h-72 overflow-y-auto no-scrollbar">
+            ${hist.slice().reverse().map(h => `<div class="bg-white/5 rounded-2xl p-4 border border-white/10">
+              <p class="t-meta font-bold text-blue-200 mb-1">Q. ${esc(h.q)}</p>
+              <p class="t-small text-slate-200 prose-ko">${esc(h.a)}</p></div>`).join("")}
+          </div>` : ""}` : ""}
+        </section>`;
+      }
+
+      /* =========================================================
+         13. 리포트 복사
+         ========================================================= */
+      window.copyReport = async function () {
+        const L = [];
+        L.push("==================================================");
+        L.push("   TREND INSIGHT LAB 분석 리포트");
+        L.push("==================================================", "");
+        L.push(`[1. 분석 대상 연도] ${state.selectedYear}년`, "");
+
+        if (state.step1Keywords.length) {
+          L.push("[2. 선택 트렌드]");
+          state.step1Keywords.forEach(k => {
+            L.push(`● ${k.kr} (${k.en})`, `  요약: ${k.summary}`);
+            L.push("");
+          });
+        }
+        if (state.steepResult) {
+          L.push("[3. 과거-현재 STEEP 분석]");
+          state.steepResult.forEach(item => {
+            L.push(`■ ${item.keyword}`);
+            ["past", "present"].forEach(t => {
+              L.push(`  <${TIMELINE_LABEL[t]}>`, `   ${item.timeline[t].desc}`);
+              Object.entries(item.timeline[t].steep).forEach(([k, v]) => L.push(`   - ${STEEP_LABEL[k.toLowerCase()] || k.toUpperCase()}: ${v}`));
+            });
+            L.push("");
+          });
+        }
+        if (state.futureScenario) {
+          L.push(`[4. 미래 예측 트렌드 (${state.targetYear}년)]`);
+          state.futureScenario.trends.forEach((t, i) => {
+            L.push(`● #${i + 1}${state.selectedScenarioIndex === i ? " (선택됨)" : ""}: ${t.futureTrendKeyword}`);
+            L.push(`  특성: ${t.characteristics}`, `  시나리오: ${t.userScenario}`, "");
+          });
+        }
+        if (state.researchTopic) L.push("[5. 추론 과제]", `- ${state.researchTopic}`, "");
+        if (state.reasoningResult) {
+          L.push("[6. 통합 인사이트]");
+          state.reasoningResult.insights.forEach((ins, i) => {
+            L.push(`${i + 1}. ${ins.headline}${state.selectedInsightIndex === i ? " (선택됨)" : ""}`, `   ${ins.description}`);
+          });
+          L.push("");
+        }
+        if (state.allGeneratedConcepts.length) {
+          L.push("[7. 디자인 컨셉 (누적)]");
+          state.allGeneratedConcepts.forEach((c, i) => {
+            L.push(`● 컨셉 #${i + 1} [${c.perspective || "General"} 관점]: ${c.title}`);
+            if (c.persona) L.push(`  타겟: ${c.persona}`);
+            if (c.description) L.push(`  개요: ${c.description}`);
+            L.push(`  핵심가치: ${c.coreValue}`);
+            (c.keyFeatures || []).forEach(f => L.push(`   · ${f.title}${f.desc ? ": " + f.desc : ""}`));
+            L.push("");
+          });
+        }
+        if (state.benchmarkResult) {
+          L.push(`[8. 케이스스터디 — ${state.benchmarkResult.selectedConceptName}]`);
+          state.benchmarkResult.cases.forEach((c, i) => {
+            L.push(`▶ Case #${i + 1}. ${c.caseName}`, `  특징: ${c.caseCharacteristics}`,
+              `  성공 요인: ${c.successFactor}`, `  비즈니스 결과: ${c.businessResult}`, `  확장 가능성: ${c.expansionFactor}`, "");
+          });
+        }
+        if (state.qaHistory.length) {
+          L.push("[9. AI Q&A 기록]");
+          state.qaHistory.forEach((h, i) => L.push(`질문 ${i + 1}: ${h.q}`, `답변: ${h.a}`, ""));
+        }
+
+        const txt = L.join("\n");
+        try {
+          if (navigator.clipboard && window.isSecureContext) {
+            await navigator.clipboard.writeText(txt);
+          } else {
+            const ta = document.createElement("textarea");
+            ta.value = txt; ta.setAttribute("readonly", "");
+            ta.style.cssText = "position:fixed;top:-1000px;opacity:0";
+            document.body.appendChild(ta); ta.select();
+            const ok = document.execCommand("copy");
+            document.body.removeChild(ta);
+            if (!ok) throw new Error("copy rejected");
+          }
+          toast("리포트를 클립보드에 복사했습니다.", "ok");
+        } catch (e) {
+          console.error(e);
+          toast("복사에 실패했습니다. 브라우저 권한을 확인해 주세요.", "error");
+        }
+      };
+
+      /* =========================================================
+         14. 화면별 렌더
+         ========================================================= */
+      function viewAuth() {
+        return `<div class="min-h-screen flex flex-col items-center justify-center px-8 py-16 bg-white text-center animate-fade-in">
+          <div class="w-24 h-24 bg-blue-600 rounded-full flex items-center justify-center mb-10 shadow-[0_10px_24px_rgba(37,99,235,.3)]">
+            <i data-lucide="fingerprint" class="text-white w-12 h-12"></i>
+          </div>
+          <h1 class="t-display italic text-slate-900 mb-4">Trend Insight Lab</h1>
+          <p class="t-small text-slate-500 font-bold mb-12">트렌드에서 디자인 컨셉까지, 8단계 분석 도구</p>
+          <div class="w-full space-y-4">
+            <a href="https://aistudio.google.com/app/apikey" target="_blank" rel="noopener" class="inline-block t-small text-blue-700 font-bold underline underline-offset-4">개인 API 키 발급받기</a>
+            <label for="api-input" class="sr-only">Gemini API 키</label>
+            <input type="password" id="api-input" autocomplete="off"
+              class="w-full p-5 bg-white border-2 border-slate-300 rounded-2xl text-center focus:border-blue-600 outline-none t-h3 font-medium text-slate-900 placeholder:text-slate-400 placeholder:font-normal"
+              placeholder="API 키를 붙여 넣으세요">
+            <p class="t-meta text-slate-500">키는 이 브라우저 탭에만 임시 보관되며 서버로 전송되지 않습니다.</p>
+            ${primaryBtn("시작하기", "Actions.validateKey()")}
+          </div>
+        </div>`;
+      }
+
+      function viewHome() {
+        const projects = Store.list();
+        return `<div class="flex flex-col min-h-screen bg-slate-900 text-white relative overflow-hidden">
+          <div class="absolute top-[-25%] left-[-20%] w-[140%] h-[55%] bg-blue-600 rounded-full blur-[110px] opacity-40"></div>
+          <div class="relative z-10 flex flex-col flex-1 px-7 pt-16 pb-12 justify-center gap-8">
+            <div class="space-y-5">
+              <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/10 border border-white/20 t-meta font-bold"><i data-lucide="sparkles" class="text-yellow-300 w-4 h-4"></i> AI Powered</span>
+              <h1 class="t-display italic leading-tight">트렌드에서<br/>당신의 인사이트를<br/><span class="text-sky-300">발견하세요</span></h1>
+              <p class="t-body text-slate-300">데이터 기반 트렌드 분석부터 미래 시나리오와 디자인 컨셉까지, 여덟 단계로 이어집니다.</p>
+            </div>
+
+            <div class="space-y-3">
+              ${primaryBtnLight("새 프로젝트 시작", "Actions.startNewProject()")}
+            </div>
+
+            <div>
+              <h2 class="t-label text-slate-400 mb-3">저장된 프로젝트 ${projects.length}/${CONFIG.MAX_PROJECTS}</h2>
+              ${projects.length ? `<ul class="space-y-2">${projects.map(p => `
+                <li class="flex items-center gap-2 bg-white/5 border border-white/10 rounded-2xl px-4 py-3">
+                  <button type="button" onclick="Actions.openProject('${escAttr(p.id)}')" class="flex-1 text-left min-w-0">
+                    <span class="block t-small font-bold text-white truncate">${esc(p.title)}</span>
+                    <span class="block t-meta text-slate-400">${esc(new Date(p.savedAt).toLocaleString("ko-KR"))}</span>
+                  </button>
+                  <button type="button" aria-label="${escAttr(p.title)} 삭제" onclick="Actions.deleteProject('${escAttr(p.id)}')" class="p-2.5 rounded-full hover:bg-white/10 text-slate-400 flex-shrink-0"><i data-lucide="trash-2" class="w-5 h-5"></i></button>
+                </li>`).join("")}</ul>`
+            : `<p class="t-small text-slate-400 bg-white/5 border border-white/10 rounded-2xl px-4 py-5">아직 저장된 프로젝트가 없습니다. 새 프로젝트를 시작하면 진행 상태가 자동으로 저장됩니다.</p>`}
+            </div>
+          </div>
+        </div>`;
+      }
+
+      function primaryBtnLight(label, onclick) {
+        return `<button type="button" onclick="${onclick}" class="w-full bg-white text-slate-900 py-5 rounded-2xl font-bold t-h3 flex items-center justify-center gap-2 shadow-2xl active:scale-[0.98] transition-all">${esc(label)} <i data-lucide="arrow-right" class="w-5 h-5"></i></button>`;
+      }
+
+      function viewSelect() {
+        const list = TREND_DATA[state.selectedYear].map(item => {
+          const on = state.step1Keywords.some(k => k.code === item.code);
+          const open = !!state.expanded[item.code];
+          return `<article class="bg-white rounded-3xl p-5 shadow-sm border ${on ? "ring-2 ring-blue-600 border-blue-200 bg-blue-50/50" : "border-slate-200"} mb-3 transition-all">
+            <div class="flex justify-between items-start gap-3">
+              <button type="button" class="flex-1 text-left min-w-0" aria-expanded="${open}" onclick="toggleExpand('${item.code}')">
+                <h3 class="t-h3 text-slate-900 mb-0.5">${esc(item.kr)}</h3>
+                <p class="t-meta text-slate-500 italic">${esc(item.en)}</p>
+              </button>
+              <button type="button" onclick="Actions.toggleKeyword('${item.code}')" aria-pressed="${on}"
+                class="px-4 py-2.5 rounded-full t-meta font-bold flex-shrink-0 transition-all active:scale-95 ${on ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}">${on ? "선택됨" : "선택"}</button>
+            </div>
+            ${open ? `<p class="mt-4 pt-4 border-t border-slate-200 t-small text-slate-700 animate-fade-in">${esc(item.summary)}</p>` : ""}
+          </article>`;
+        }).join("");
+
+        const n = state.step1Keywords.length;
+        return `<div class="pt-24 px-4 dock-space animate-fade-in">
+          ${header("트렌드 선택", 0)}
+          <h2 class="t-h1 text-slate-900 mb-2">분석할 트렌드를<br/>최대 2개까지 고르세요</h2>
+          <p class="t-small text-slate-500 mb-6">제목을 누르면 설명이 펼쳐집니다.</p>
+          <div class="flex gap-2 mb-6" role="group" aria-label="연도 선택">
+            ${["2024", "2025", "2026"].map(y => `<button type="button" onclick="setState({selectedYear:'${y}'})" aria-pressed="${state.selectedYear === y}"
+              class="px-6 py-2.5 rounded-full font-bold t-small transition-all ${state.selectedYear === y ? "bg-slate-900 text-white shadow-md" : "bg-white border border-slate-300 text-slate-600"}">${y}</button>`).join("")}
+          </div>
+          ${list}
+          ${dock(`
+            ${n ? `<div class="flex flex-wrap gap-2 mb-3">${state.step1Keywords.map(k => `<span class="bg-slate-800 text-white pl-3 pr-2 py-1.5 rounded-full t-meta font-bold flex items-center gap-1">${esc(k.kr)}
+              <button type="button" aria-label="${escAttr(k.kr)} 선택 해제" onclick="Actions.toggleKeyword('${k.code}')" class="p-0.5 rounded-full hover:bg-white/20"><i data-lucide="x" class="w-4 h-4"></i></button></span>`).join("")}</div>` : ""}
+            ${primaryBtn(n ? `선택한 ${n}개로 과거·현재 분석` : "트렌드를 선택해 주세요", "Actions.runSteep()", n === 0)}
+          `)}
+        </div>`;
+      }
+
+      function viewSteep() {
+        const body = state.steepResult.map(item => `
+          <section class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-200">
+            <h2 class="t-h1 text-slate-900 mb-7 flex items-center gap-3"><span class="w-2 h-8 bg-blue-900 rounded-full"></span>${esc(item.keyword)}</h2>
+            ${["past", "present"].map(t => `<div class="mb-9 last:mb-0">
+              <h3 class="t-label text-blue-700 mb-3">${esc(TIMELINE_LABEL[t])}</h3>
+              <p class="t-body text-slate-800 prose-ko mb-5">${esc(item.timeline[t].desc)}</p>
+              <dl class="bg-slate-50 p-5 rounded-2xl border border-slate-200 space-y-3">
+                ${Object.entries(item.timeline[t].steep).map(([k, v]) => `<div>
+                  <dt class="t-meta font-bold text-slate-900">${esc(STEEP_LABEL[String(k).toLowerCase()] || String(k).toUpperCase())}</dt>
+                  <dd class="t-small text-slate-700">${esc(v)}</dd></div>`).join("")}
+              </dl>
+            </div>`).join("")}
+          </section>`).join("");
+
+        return `<div class="pt-24 px-4 dock-space animate-fade-in">
+          ${header("과거·현재 분석", 1)}
+          <div class="space-y-6">${body}</div>
+          ${qaBox("qa-steep", "steepResult")}
+          ${dock(primaryBtn("미래 트렌드 예측하기", "setState({step:3})"))}
+        </div>`;
+      }
+
+      function viewYear() {
+        return `<div class="pt-24 px-6 min-h-screen flex flex-col justify-center animate-fade-in dock-space">
+          ${header("예측 연도 설정", 2)}
+          <h2 class="t-h1 text-slate-900 mb-2 text-center">어느 시점을 예측할까요?</h2>
+          <p class="t-small text-slate-500 mb-10 text-center">슬라이더를 움직여 목표 연도를 정하세요.</p>
+          <output id="year-display" for="year-range" class="block t-display text-center text-indigo-600 mb-10" style="font-size:64px">${state.targetYear}</output>
+          <label for="year-range" class="sr-only">목표 연도</label>
+          <input type="range" id="year-range" min="2026" max="2035" step="1" value="${state.targetYear}"
+            aria-valuemin="2026" aria-valuemax="2035" aria-valuenow="${state.targetYear}"
+            oninput="document.getElementById('year-display').textContent=this.value; this.setAttribute('aria-valuenow', this.value); setDraft('targetYear', parseInt(this.value,10));"
+            class="w-full appearance-none bg-transparent cursor-pointer">
+          <div class="flex justify-between t-meta text-slate-500 mt-2"><span>2026</span><span>2035</span></div>
+          ${dock(primaryBtn("미래 예측하기", "Actions.runScenario()"))}
+        </div>`;
+      }
+
+      function viewScenario() {
+        const cards = state.futureScenario.trends.map((sc, i) => {
+          const on = state.selectedScenarioIndex === i;
+          return `<section class="mb-10 last:mb-0 animate-fade-in">
+            <div class="bg-slate-900 rounded-[2rem] p-7 text-white mb-5 shadow-xl border-2 ${on ? "border-blue-500" : "border-transparent"}">
+              <div class="flex items-center justify-between gap-3 mb-3">
+                <span class="t-label text-blue-300">미래 트렌드 ${i + 1}</span>
+                <button type="button" aria-pressed="${on}" onclick="setState({selectedScenarioIndex:${i}, ...invalidateFrom(7)})"
+                  class="px-5 py-2 rounded-full t-meta font-bold transition-all active:scale-95 flex-shrink-0 ${on ? "bg-blue-600 text-white" : "bg-white/10 text-white border border-white/30 hover:bg-white/20"}">${on ? "선택됨" : "선택"}</button>
+              </div>
+              <h2 class="t-h1 italic">${esc(sc.futureTrendKeyword)}</h2>
+            </div>
+            <div class="space-y-7 px-1">
+              <div>
+                <h3 class="t-label text-blue-700 mb-2">트렌드 특성</h3>
+                <p class="t-body text-slate-800 prose-ko">${esc(sc.characteristics)}</p>
+              </div>
+              <div>
+                <h3 class="t-label text-indigo-700 mb-2">사용자 행동 시나리오</h3>
+                <p class="t-body text-slate-800 prose-ko italic">${esc(sc.userScenario)}</p>
+              </div>
+            </div>
+          </section>`;
+        }).join("");
+
+        const picked = state.selectedScenarioIndex >= 0;
+        return `<div class="pt-24 px-4 dock-space animate-fade-in">
+          ${header("미래 트렌드 3개", 3)}
+          <p class="t-small text-slate-500 mb-6">${state.targetYear}년 기준으로 예측한 3개의 트렌드입니다. 하나를 선택하면 다음 단계로 넘어갑니다.</p>
+          ${cards}
+          ${instructionBox("scenario-instruction", "Actions.runScenario(document.getElementById('scenario-instruction').value)", "예: 더 경제적인 관점으로 수정")}
+          ${qaBox("qa-scenario", "futureScenario")}
+          ${dock(primaryBtn(picked ? "통합 추론 진행" : "트렌드를 하나 선택해 주세요", "setState({step:5})", !picked))}
+        </div>`;
+      }
+
+      function viewTopic() {
+        return `<div class="pt-24 px-6 min-h-screen flex flex-col justify-center animate-fade-in dock-space">
+          ${header("추론 목적", 4)}
+          <i data-lucide="lightbulb" class="w-12 h-12 text-amber-500 mb-6"></i>
+          <h2 class="t-h1 text-slate-900 mb-3">어떤 과제를 풀고 싶으신가요?</h2>
+          <p class="t-small text-slate-500 mb-6">선택한 트렌드와 미래 예측을 이 과제에 맞춰 통합 추론합니다.<br/>예: 2030년 TV UX 신규 컨셉</p>
+          <label for="research-topic" class="sr-only">추론 과제</label>
+          <textarea id="research-topic" oninput="setDraft('research-topic', this.value)"
+            class="w-full h-40 p-5 rounded-2xl border-2 border-slate-300 t-body focus:border-blue-600 outline-none text-slate-900 placeholder:text-slate-400"
+            placeholder="여기에 과제를 적어 주세요">${esc(draft("research-topic") || state.researchTopic)}</textarea>
+          ${dock(primaryBtn("통합 추론 진행", "Actions.runReasoning()"))}
+        </div>`;
+      }
+
+      function viewReasoning() {
+        const cards = state.reasoningResult.insights.map((ins, i) => {
+          const on = state.selectedInsightIndex === i;
+          return `<article class="bg-white p-6 rounded-[2rem] shadow-sm border-2 transition-all ${on ? "border-blue-600 bg-blue-50/50" : "border-slate-200"}">
+            <div class="flex items-center justify-between gap-3 mb-4">
+              <span class="t-label text-blue-700">Insight ${i + 1}</span>
+              <button type="button" aria-pressed="${on}" onclick="setState({selectedInsightIndex:${i}, ...invalidateFrom(7)})"
+                class="px-4 py-2 rounded-full t-meta font-bold flex-shrink-0 transition-all active:scale-95 ${on ? "bg-blue-600 text-white shadow-md" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}">${on ? "선택됨" : "선택"}</button>
+            </div>
+            <h3 class="t-h3 text-blue-900 mb-3">${esc(ins.headline)}</h3>
+            <p class="t-body text-slate-700 prose-ko">${esc(ins.description)}</p>
+          </article>`;
+        }).join("");
+
+        const picked = state.selectedInsightIndex >= 0;
+        return `<div class="pt-24 px-4 dock-space animate-fade-in">
+          ${header("통합 인사이트", 5)}
+          <h2 class="t-h1 text-slate-900 mb-2">통합 추론 리포트</h2>
+          <p class="t-small text-slate-500 mb-6">과제: ${esc(state.researchTopic)}</p>
+          <div class="space-y-5">${cards}</div>
+          ${instructionBox("reasoning-instruction", "Actions.runReasoning(document.getElementById('reasoning-instruction').value)", "예: 더 경제적인 관점으로 수정")}
+          ${qaBox("qa-reasoning", "reasoningResult")}
+          ${dock(primaryBtn(picked ? "디자인 컨셉 제안받기" : "인사이트를 하나 선택해 주세요", "Actions.runIdeation()", !picked))}
+        </div>`;
+      }
+
+      function viewConcepts() {
+        const PERSPECTIVES = [["General", "종합 관점"], ["Humanities", "인문 관점"], ["Tech", "기술 관점"], ["Business", "비즈니스 관점"]];
+        const cards = state.concepts.map((c, i) => {
+          const cv = esc(c.coreValue).replace(/(Who:|Purpose:|Service:)/g, '<span class="text-blue-700 font-bold">$1</span>');
+          return `<article class="animate-fade-in">
+            ${c.persona ? `<p class="t-small text-indigo-700 font-bold mb-3 px-1 prose-ko">${esc(c.persona)}</p>` : ""}
+            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-200">
+              <h3 class="t-h1 text-slate-900 mb-6">${i + 1}. ${esc(c.title)}</h3>
+              <div class="space-y-7">
+                ${c.description ? `<div><h4 class="t-label text-slate-500 mb-2">개요</h4><p class="t-body text-slate-700 prose-ko">${esc(c.description)}</p></div>` : ""}
+                <div><h4 class="t-label text-slate-500 mb-2">핵심 가치</h4><p class="t-body font-medium text-slate-800 prose-ko">${cv}</p></div>
+                ${c.keyFeatures.length ? `<div><h4 class="t-label text-slate-500 mb-3">주요 기능</h4>
+                  <ul class="space-y-4">${c.keyFeatures.map(f => `<li>
+                    <p class="t-h3 text-slate-900">${esc(f.title)}</p>
+                    ${f.desc ? `<p class="t-small text-slate-600 prose-ko">${esc(f.desc)}</p>` : ""}</li>`).join("")}</ul></div>` : ""}
+              </div>
+              <button type="button" onclick="Actions.runBenchmark(${i})"
+                class="w-full mt-8 py-4 bg-slate-800 hover:bg-slate-700 text-white rounded-2xl font-bold t-small flex items-center justify-center gap-2 active:scale-[0.98] transition-all">
+                <i data-lucide="search" class="w-5 h-5"></i> 이 컨셉으로 사례 찾기</button>
+            </div>
+          </article>`;
+        }).join("");
+
+        return `<div class="pt-24 px-4 dock-space animate-fade-in">
+          ${header("디자인 컨셉", 6)}
+          <div class="space-y-10">${cards}</div>
+          <section class="mt-10">
+            <h3 class="t-label text-slate-500 mb-3">관점을 바꿔 다시 제안받기</h3>
+            <div class="grid grid-cols-2 gap-2.5">
+              ${PERSPECTIVES.map(([key, label]) => `<button type="button" onclick="setState({perspective:'${key}'}); Actions.runIdeation();"
+                class="bg-white border-2 py-3.5 rounded-2xl t-small font-bold transition-all ${state.perspective === key ? "border-blue-600 bg-blue-50 text-blue-800" : "border-slate-200 text-slate-600 hover:border-slate-300"}">${esc(label)}</button>`).join("")}
+            </div>
+            <p class="t-meta text-slate-500 mt-3">지금까지 생성한 컨셉 ${state.allGeneratedConcepts.length}개는 리포트 복사에 모두 포함됩니다.</p>
+          </section>
+          ${instructionBox("ideation-instruction", "Actions.runIdeation(document.getElementById('ideation-instruction').value)", "예: 타겟을 더 좁혀서 다시 제안")}
+          ${qaBox("qa-concepts", "concepts")}
+        </div>`;
+      }
+
+      function viewBenchmark() {
+        const b = state.benchmarkResult;
+        const blocks = b.cases.map(c => `
+          <section class="animate-fade-in">
+            <div class="bg-slate-900 rounded-[2rem] p-7 text-white mb-5 shadow-xl">
+              <span class="inline-block bg-blue-600 t-meta font-bold px-3 py-1 rounded-full mb-3">CASE STUDY</span>
+              <h2 class="t-h1 italic mb-4">${esc(c.caseName)}</h2>
+              <p class="t-small text-slate-200 bg-white/5 p-5 rounded-2xl border border-white/10 prose-ko">${esc(c.caseCharacteristics)}</p>
+            </div>
+            <div class="grid gap-4">
+              ${[["성공 요인", c.successFactor, "text-blue-700", "bg-blue-600"],
+                 ["비즈니스 결과", c.businessResult, "text-indigo-700", "bg-indigo-600"],
+                 ["가설 확장성", c.expansionFactor, "text-purple-700", "bg-purple-600"]]
+            .map(([label, val, textCls, dotCls]) => `<div class="bg-white p-6 rounded-3xl shadow-sm border border-slate-200">
+                  <h3 class="t-label ${textCls} mb-3 flex items-center gap-2"><span class="w-2 h-2 rounded-full ${dotCls}"></span>${esc(label)}</h3>
+                  <p class="t-body text-slate-800 prose-ko">${esc(val)}</p></div>`).join("")}
+            </div>
+          </section>`).join("");
+
+        return `<div class="pt-24 px-4 dock-space animate-fade-in">
+          ${header("케이스스터디", 7)}
+          <div class="mb-8">
+            <span class="t-label text-blue-700 block mb-1">선택한 컨셉</span>
+            <h2 class="t-h1 text-slate-900 italic">${esc(b.selectedConceptName)}</h2>
+          </div>
+          <div class="space-y-10">${blocks}</div>
+          ${instructionBox("benchmark-instruction", "Actions.runBenchmark(null, document.getElementById('benchmark-instruction').value)", "예: 해외 스타트업 사례 위주로")}
+          ${qaBox("qa-benchmark", "benchmarkResult")}
+        </div>`;
+      }
+
+      function overlays() {
+        let html = "";
+
+        if (state.isAnalyzing) {
+          html += `<div class="fixed inset-0 z-[10000] bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center px-8 text-center max-w-[430px] mx-auto animate-fade-in" role="status" aria-live="polite">
+            <div class="spinner-ring mb-8" role="presentation"></div>
+            <h2 class="t-h2 text-slate-900 mb-2">${esc(state.loadingMsg)}</h2>
+            <p class="t-small text-slate-500 mb-8">최대 1분 정도 걸릴 수 있습니다</p>
+            <button type="button" onclick="Actions.cancel()" class="px-7 py-3.5 rounded-2xl border-2 border-slate-300 text-slate-700 font-bold t-small hover:bg-slate-50 active:scale-95 transition-all">취소</button>
+          </div>`;
+        }
+
+        if (state.errorMsg) {
+          html += `<div class="fixed inset-0 z-[10002] flex items-center justify-center bg-black/50 px-6 backdrop-blur-sm" role="alertdialog" aria-modal="true" aria-labelledby="err-title">
+            <div class="bg-white p-8 rounded-3xl w-full max-w-sm text-center shadow-2xl animate-scale-in">
+              <i data-lucide="alert-triangle" class="text-red-600 mx-auto mb-4 w-12 h-12"></i>
+              <h2 id="err-title" class="t-h3 text-slate-900 mb-6">${esc(state.errorMsg)}</h2>
+              <button type="button" onclick="setState({errorMsg:null})" class="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold t-small">확인</button>
+            </div>
+          </div>`;
+        }
+
+        if (state.qaModal.visible) {
+          html += `<div class="fixed inset-0 z-[10001] flex items-center justify-center bg-black/60 px-6 backdrop-blur-sm animate-fade-in" role="dialog" aria-modal="true" aria-labelledby="qa-title">
+            <div class="bg-slate-800 text-white p-7 rounded-3xl w-full max-w-sm shadow-2xl animate-scale-in relative border border-white/10">
+              <button type="button" aria-label="답변 닫기" onclick="setState({qaModal:{visible:false,question:'',answer:''}})" class="absolute top-4 right-4 p-2 rounded-full text-slate-300 hover:bg-white/10"><i data-lucide="x" class="w-6 h-6"></i></button>
+              <h2 id="qa-title" class="t-label text-blue-300 mb-5">AI 컨설턴트 답변</h2>
+              <div class="space-y-4 max-h-[60vh] overflow-y-auto no-scrollbar">
+                <div class="p-4 bg-white/5 rounded-2xl border border-white/10">
+                  <p class="t-meta font-bold text-slate-400 mb-1">Q.</p>
+                  <p class="t-small text-white">${esc(state.qaModal.question)}</p>
+                </div>
+                <p class="t-body text-slate-100 prose-ko">${esc(state.qaModal.answer)}</p>
+              </div>
+            </div>
+          </div>`;
+        }
+        return html;
+      }
+
+      /* =========================================================
+         15. 메인 렌더 — 예외가 나도 화면이 멈추지 않도록 방어
+         ========================================================= */
+      function captureUI() {
+        const el = document.activeElement;
+        const f = (el && el.id && (el.tagName === "INPUT" || el.tagName === "TEXTAREA"))
+          ? { id: el.id, start: el.selectionStart, end: el.selectionEnd } : null;
+        return { focus: f, scrollY: window.scrollY };
+      }
+      function restoreUI(snap, resetScroll) {
+        if (snap.focus) {
+          const el = document.getElementById(snap.focus.id);
+          if (el) {
+            el.focus({ preventScroll: true });
+            try { el.setSelectionRange(snap.focus.start, snap.focus.end); } catch (e) { /* range 미지원 타입 */ }
+          }
+        }
+        window.scrollTo(0, resetScroll ? 0 : snap.scrollY);
+      }
+
+      function body() {
+        switch (state.step) {
+          case -1: return viewAuth();
+          case 0: return viewHome();
+          case 1: return viewSelect();
+          case 2: return state.steepResult ? viewSteep() : fallback(1, "과거·현재 분석 결과가 없습니다.");
+          case 3: return state.steepResult ? viewYear() : fallback(2, "먼저 과거·현재 분석을 완료해 주세요.");
+          case 4: return state.futureScenario ? viewScenario() : fallback(3, "미래 트렌드 예측 결과가 없습니다.");
+          case 5: return state.futureScenario ? viewTopic() : fallback(4, "먼저 미래 트렌드를 예측해 주세요.");
+          case 6: return state.reasoningResult ? viewReasoning() : fallback(5, "통합 인사이트 결과가 없습니다.");
+          case 7: return state.concepts.length ? viewConcepts() : fallback(6, "디자인 컨셉 결과가 없습니다.");
+          case 8: return state.benchmarkResult ? viewBenchmark() : fallback(7, "케이스스터디 결과가 없습니다.");
+          default: return fallback(0, "요청한 화면을 찾을 수 없습니다.");
+        }
+      }
+
+      function fallback(backStep, msg) {
+        return `<div class="pt-28 px-6 min-h-screen">
+          <div class="bg-white border border-slate-200 rounded-3xl p-8 text-center shadow-sm">
+            <i data-lucide="compass" class="w-12 h-12 text-slate-400 mx-auto mb-4"></i>
+            <h2 class="t-h3 text-slate-900 mb-2">${esc(msg)}</h2>
+            <p class="t-small text-slate-500 mb-6">이전 단계로 돌아가 다시 실행해 주세요.</p>
+            ${primaryBtn("이전 단계로", `setState({step:${backStep}})`)}
+          </div>
+        </div>`;
+      }
+
+      function render(resetScroll) {
+        const root = document.getElementById("root");
+        const snap = captureUI();
+        const shell = "w-full max-w-[430px] mx-auto bg-slate-50 min-h-screen relative overflow-x-hidden shadow-2xl";
+        let inner;
+        try {
+          inner = body();
+        } catch (err) {
+          // 기존 구조에서는 여기서 예외가 나면 innerHTML 대입 자체가 실행되지 않아
+          // "버튼을 눌렀는데 아무 일도 일어나지 않는" 상태가 됐음.
+          console.error("render 실패:", err);
+          inner = fallback(0, "화면을 그리는 중 문제가 발생했습니다.");
+        }
+        try {
+          root.innerHTML = `<div class="${shell}">${inner}${overlays()}</div>`;
+          if (window.lucide && typeof lucide.createIcons === "function") lucide.createIcons();
+        } catch (err) {
+          console.error("DOM 갱신 실패:", err);
+          root.innerHTML = `<div class="${shell}"><div class="p-8 t-body">화면을 표시할 수 없습니다. 새로고침해 주세요.</div></div>`;
+        }
+        restoreUI(snap, resetScroll);
+      }
+
+      /* =========================================================
+         16. 전역 헬퍼 & 부팅
+         ========================================================= */
+      window.toggleExpand = (code) => setState({ expanded: { ...state.expanded, [code]: !state.expanded[code] } });
+      window.invalidateFrom = invalidateFrom;
+
+      document.addEventListener("keydown", (e) => {
+        if (e.key !== "Escape") return;
+        if (state.qaModal.visible) setState({ qaModal: { visible: false, question: "", answer: "" } });
+        else if (state.errorMsg) setState({ errorMsg: null });
+        else if (state.isAnalyzing) Actions.cancel();
+      });
+
+      // 연도 슬라이더 값은 draft에 보관 → 예측 실행 직전에 state로 반영
+      const _runScenario = Actions.runScenario.bind(Actions);
+      Actions.runScenario = function (instruction) {
+        const y = drafts.targetYear;
+        if (y && y !== state.targetYear) state.targetYear = y;
+        return _runScenario(instruction);
+      };
+
+      setInterval(() => { try { persist(false); } catch (e) { console.warn("자동 저장 실패", e); } }, CONFIG.AUTOSAVE_MS);
+      window.addEventListener("beforeunload", () => { try { persist(false); } catch (e) { /* 무시 */ } });
+
+      render(true);
+    })();
+  </script>
 </body>
 </html>
