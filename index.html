@@ -1,4 +1,3 @@
-<!doctype html><html><head><meta charset=utf8><meta name=viewport content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}html{scroll-padding-top:env(safe-area-inset-top,0px)}body{margin:0;padding:0;font:14px -apple-system,BlinkMacSystemFont,sans-serif;background:#fff;color:#000}img{max-width:100%}[hidden]:not([hidden=until-found i]){display:none!important}</style></head><body>
 <!DOCTYPE html>
 <html lang="ko">
 <head>
@@ -176,8 +175,34 @@ import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 
 /* ───────── 렌더러 / 씬 ───────── */
 const canvas = document.getElementById('c');
-const renderer = new THREE.WebGLRenderer({canvas, antialias:true, powerPreference:'high-performance'});
-renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+/* Desktop detection: touch-screen Windows laptops remain PC; tablets stay mobile.
+   Mobile graphics, 768px material textures and animation cadence are unchanged. */
+const IS_MOBILE=!!navigator.userAgentData?.mobile ||
+  /Android|iPad|iPhone|iPod|Mobile|Windows Phone|Kindle|Silk/i.test(navigator.userAgent) ||
+  (/Macintosh/i.test(navigator.userAgent) && navigator.maxTouchPoints>1);
+const IS_PC=!IS_MOBILE;
+/* WebGL already uses the GPU. High-performance is a browser hint; it cannot
+   override user/browser graphics preferences or force the discrete GPU. */
+const renderer=new THREE.WebGLRenderer({canvas,antialias:!IS_PC,
+  powerPreference:'high-performance',alpha:false,stencil:!IS_PC});
+let pcRendererName='', pcSoftware=false;
+const pcStableQuality={ratio:1, width:0, height:0, fps:0, frames:0, started:0};
+if(IS_PC){
+  const gl=renderer.getContext(),info=gl.getExtension('WEBGL_debug_renderer_info');
+  pcRendererName=String(info?gl.getParameter(info.UNMASKED_RENDERER_WEBGL):gl.getParameter(gl.RENDERER));
+  pcSoftware=/SwiftShader|llvmpipe|software raster|Microsoft Basic|softpipe|Mesa Offscreen|\bWARP\b/i.test(pcRendererName);
+  // Actual GL GPU and screen size select an initial *fixed* quality; never adapt during animation.
+  const discrete=/NVIDIA|GeForce|Radeon RX|Radeon Pro|Arc\(TM\)|Intel\(R\) Arc/i.test(pcRendererName);
+  const integrated=/Intel\(R\) (?:UHD|HD|Iris)|Intel Iris|AMD Radeon\(TM\) Graphics/i.test(pcRendererName);
+  const budget=pcSoftware?1200000:discrete?3400000:integrated?2200000:2600000;
+  const pixelRatio=window.devicePixelRatio||1;
+  pcStableQuality.ratio=Math.min(pixelRatio,1.25,Math.max(.50,Math.sqrt(budget/Math.max(1,innerWidth*innerHeight))));
+  // Avoid recomputing an unchanged shadow atlas on every camera / light sweep frame.
+  renderer.shadowMap.autoUpdate=false;
+  renderer.shadowMap.needsUpdate=true;
+  if('transmissionResolutionScale' in renderer)renderer.transmissionResolutionScale=.75;
+}
+renderer.setPixelRatio(IS_PC?pcStableQuality.ratio:Math.min(devicePixelRatio,2));
 renderer.toneMapping = THREE.NeutralToneMapping; // Khronos PBR Neutral: 기본색(base color)을 왜곡 없이 재현
 renderer.shadowMap.enabled = true;
 renderer.shadowMap.type = THREE.PCFSoftShadowMap;
@@ -189,15 +214,17 @@ controls.enableDamping=true; controls.dampingFactor=.08; controls.minDistance=.8
 controls.maxPolarAngle=Math.PI*.495;controls.enablePan=false;controls.minDistance=1; controls.autoRotateSpeed=.7;
 const pmrem = new THREE.PMREMGenerator(renderer);
 /* MSAA 렌더 → 네온 번짐(블룸) → 톤매핑/sRGB */
-const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1,1,{type:THREE.HalfFloatType,samples:4}));
+// PC: single MSAA stage in the composer. Mobile retains original 4x MSAA.
+const composer = new EffectComposer(renderer, new THREE.WebGLRenderTarget(1,1,
+  {type:THREE.HalfFloatType,samples:IS_PC?2:4}));
 composer.addPass(new RenderPass(scene, camera));
 const bloom = new UnrealBloomPass(new THREE.Vector2(256,256), .2, .42, .95);
 composer.addPass(bloom);
 composer.addPass(new OutputPass());
-const maxAniso = renderer.capabilities.getMaxAnisotropy();
+const maxAniso = IS_PC?Math.min(4,renderer.capabilities.getMaxAnisotropy()):renderer.capabilities.getMaxAnisotropy();
 
 /* ───────── 맵 생성 유틸 (한 면 = 60 mm 레이아웃) ───────── */
-const S = 768;
+const S = IS_PC?648:768; // PC maps: ~29% fewer pixels; multiple-of-12 keeps woven noise integral
 let seed = 11;
 const rnd=()=>(seed=(seed*16807)%2147483647,(seed-1)/2147483646);
 const ss=(a,b,x)=>{const t=Math.min(1,Math.max(0,(x-a)/(b-a)));return t*t*(3-2*t);};
@@ -248,9 +275,20 @@ function phys(p,m={}){
   if(m.ccRough)mat.clearcoatRoughnessMap=T(m.ccRough);
   if(m.ccNormal)mat.clearcoatNormalMap=T(m.ccNormal);
   if(m.sheenMap)mat.sheenColorMap=T(m.sheenMap,true);
-  if(m.alpha){mat.alphaMap=T(m.alpha);mat.alphaTest=.5;
-    // 미세 입자가 밉맵에서 사라지지 않도록 (입자 컷아웃·발광은 밉맵 없이 샘플)
-    [mat.alphaMap,mat.emissiveMap].forEach(t=>{if(t){t.generateMipmaps=false;t.minFilter=THREE.LinearFilter;}});}
+  if(m.alpha){
+    mat.alphaMap=T(m.alpha);
+    if(IS_PC){
+      // Rotating, tiny resin particles can sparkle on PCs if cutout is not mipfiltered.
+      // Use MSAA coverage + mipmaps to reduce temporal aliasing without frame reallocations.
+      mat.alphaTest=.22;
+      mat.alphaToCoverage=true;
+      mat.alphaMap.minFilter=THREE.LinearMipmapLinearFilter;
+    } else {
+      mat.alphaTest=.5;
+      mat.alphaMap.generateMipmaps=false;
+      mat.alphaMap.minFilter=THREE.LinearFilter;
+    }
+  }
   if(m.aniso)mat.anisotropyMap=T(m.aniso);
   if(m.emissive)mat.emissiveMap=T(m.emissive,true);
   mat.userData.baseRough=q.roughness??1; mat.userData.glow=q.emissiveIntensity??0; mat.userData.envBoost=m.envBoost||1;
@@ -452,10 +490,11 @@ const floorMat=new THREE.MeshStandardMaterial({color:'#8d8b86',roughness:.92,met
 const floor=new THREE.Mesh(new THREE.PlaneGeometry(16,16),floorMat);floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
 const key=new THREE.RectAreaLight('#e6eeff',6,.22,3.2);scene.add(key);
 const sun=new THREE.SpotLight('#ffffff',30,0,.55,.9,2);sun.position.set(2.2,5.2,2.4);sun.castShadow=true;
-sun.shadow.mapSize.set(2048,2048);sun.shadow.bias=-.0004;sun.shadow.normalBias=.02;sun.shadow.camera.near=2;sun.shadow.camera.far=12;scene.add(sun);scene.add(sun.target);
+sun.shadow.mapSize.set(IS_PC?1024:2048,IS_PC?1024:2048);sun.shadow.bias=-.0004;sun.shadow.normalBias=.02;sun.shadow.camera.near=2;sun.shadow.camera.far=12;scene.add(sun);scene.add(sun.target);
 
 /* ───────── 시편 ───────── */
 let RAD=.04;const geoCache={};
+const refreshShadow=()=>{if(IS_PC)renderer.shadowMap.needsUpdate=true;};
 /* RoundedBoxGeometry(r160)의 UV는 평면 중앙에서 퇴화(같은 값으로 붕괴)해 노멀맵이 별/마름모 모양으로 깨짐 →
    면별 평면 투영 UV로 다시 계산 (각 면을 바깥에서 볼 때 u=오른쪽, v=위, 미러링 없음) */
 function planarUV(gm,size){
@@ -479,6 +518,7 @@ function buildSpecimen(def,idx){
   const layers=(m.layers||[]).map(l=>{const mesh=new THREE.Mesh(geo(RAD,l.gap),l.mat);gp.add(mesh);return {mesh,gap:l.gap,mat:l.mat};});
   gp.position.y=.5;scene.add(gp);
   specimens.push({def,g:gp,outer,layers,mats:[m.outer,...layers.map(l=>l.mat)]});
+  refreshShadow();
 }
 function applyTune(){
   for(const s of specimens)for(const m of s.mats){
@@ -488,7 +528,7 @@ function applyTune(){
   key.intensity=keyBase*tune.env;
   bloom.strength=Math.min(1.2,tune.glow);bloom.enabled=tune.glow>0.001;
 }
-const applyRadius=()=>specimens.forEach(s=>{s.outer.geometry=geo(RAD);s.layers.forEach(l=>l.mesh.geometry=geo(RAD,l.gap));});
+const applyRadius=()=>{specimens.forEach(s=>{s.outer.geometry=geo(RAD);s.layers.forEach(l=>l.mesh.geometry=geo(RAD,l.gap));});refreshShadow();};
 
 /* ───────── 모드 / 배치 / 시점 ───────── */
 let mode='single',sel=0;
@@ -502,6 +542,7 @@ function layout(){
       s.g.position.set((i%cols-(cols-1)/2)*gap,.5*sc,(Math.floor(i/cols)-(rows-1)/2)*gap);}
   });
   ring.visible=mode==='grid';const s=specimens[sel];if(s){ring.position.x=s.g.position.x;ring.position.z=s.g.position.z;}
+  refreshShadow(); // object visibility/placement changed; otherwise reuse static shadow map
 }
 const VIEWS={
   oblique:{label:'사선 45°',s:[2.6,1.75,3.1],t:[0,.5,0]},
@@ -580,25 +621,73 @@ canvas.addEventListener('pointerup',e=>{if(!down||mode!=='grid')return;if(Math.h
   const h=ray.intersectObjects(specimens.map(s=>s.outer))[0];if(h)select(h.object.parent.userData.idx,true);});
 
 /* ───────── 루프 ───────── */
-function resize(){const w=innerWidth,h=innerHeight;renderer.setSize(w,h,false);composer.setSize(w,h);camera.aspect=w/h;camera.fov=h>w?42:32;camera.updateProjectionMatrix();}
-addEventListener('resize',()=>{resize();layout();if(mode==='grid')setView(view);});
+// PC flicker prevention: NO runtime FPS-driven resolution switching, target reallocations,
+// synthetic 60fps cap, or periodic changes to the bloom / shadow texture dimensions.
+function resize(){
+  const w=Math.max(1,innerWidth),h=Math.max(1,innerHeight);
+  if(IS_PC){
+    if(pcStableQuality.width===w&&pcStableQuality.height===h)return;
+    pcStableQuality.width=w;pcStableQuality.height=h;
+    // DPR is set exactly once on startup, not modified at resize or during rendering.
+    renderer.setSize(w,h,false);
+    composer.setSize(w,h);
+    // GPU-efficient half-size glow. Recreated only on a *real* viewport dimension change.
+    bloom.setSize(Math.max(32,Math.round(w*pcStableQuality.ratio*.55)),
+      Math.max(32,Math.round(h*pcStableQuality.ratio*.55)));
+  }else{
+    // Original mobile code path preserved.
+    renderer.setSize(w,h,false);composer.setSize(w,h);
+  }
+  camera.aspect=w/h;camera.fov=h>w?42:32;camera.updateProjectionMatrix();
+}
+let resizePending=false;
+addEventListener('resize',()=>{
+  if(resizePending)return;
+  resizePending=true;
+  requestAnimationFrame(()=>{
+    resizePending=false;
+    if(IS_PC&&pcStableQuality.width===innerWidth&&pcStableQuality.height===innerHeight)return;
+    resize();layout();if(mode==='grid')setView(view);
+  });
+});
 const clock=new THREE.Clock(),reduce=matchMedia('(prefers-reduced-motion: reduce)').matches;
-function tick(){
-  const dt=clock.getDelta();
-  if(sweep&&!reduce){angle=(angle+dt*14)%360;$('sAng').value=angle;$('oAng').textContent=Math.round(angle)+'°';}
-  const a=THREE.MathUtils.degToRad(angle);key.position.set(Math.cos(a)*3.2,1.9,Math.sin(a)*3.2);key.lookAt(0,.5,0);
-  controls.update();composer.render();requestAnimationFrame(tick);
+let prevAngleLabel=-1;
+function tick(now){
+  const dt=IS_PC?Math.min(.05,clock.getDelta()):clock.getDelta();
+  if(sweep&&!reduce){
+    angle=(angle+dt*14)%360;
+    if(!IS_PC){$('sAng').value=angle;$('oAng').textContent=Math.round(angle)+'°';}
+    else{
+      const shown=Math.round(angle);
+      if(shown!==prevAngleLabel){$('sAng').value=angle;$('oAng').textContent=shown+'°';prevAngleLabel=shown;}
+    }
+  }
+  const a=THREE.MathUtils.degToRad(angle);
+  key.position.set(Math.cos(a)*3.2,1.9,Math.sin(a)*3.2);key.lookAt(0,.5,0);
+  controls.update();
+  if(!document.hidden){composer.render();}
+  // Rely on native monitor rAF (60/120/144Hz); avoid forced FPS cadence judder.
+  requestAnimationFrame(tick);
 }
 const frame=()=>new Promise(r=>requestAnimationFrame(()=>setTimeout(r,0)));
 (async()=>{
   try{
     for(let i=0;i<DEFS.length;i++){$('load').textContent=`표면 맵을 생성하는 중… ${i+1}/8 ${DEFS[i].kr}`;await frame();buildSpecimen(DEFS[i],i);}
-    setEnv(0);applyTune();resize();select(0,false);setView('oblique');
+    setEnv(0);applyTune();resize();
+    if(IS_PC){
+      // Precompile and upload all eight material variants behind the loader. This avoids
+      // the severe shader/texture-upload freeze when first switching to the 8-item view.
+      $('load').textContent='PC GPU 소재·반사 효과 준비 중…';
+      await frame();
+      mode='grid';layout();setView('oblique');
+      composer.render();
+      mode='single';
+    }
+    select(0,false);setView('oblique');
+    if(IS_PC)composer.render(); // fully drawn frame before uncovering the canvas
     $('load').classList.add('done');tick();
   }catch(err){$('load').textContent='3D를 시작하지 못했습니다. WebGL2를 지원하는 최신 브라우저에서 다시 열어 주세요. ('+err.message+')';}
 })();
 </script>
 </body>
 </html>
-
-</body></html>
